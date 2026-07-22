@@ -40,6 +40,10 @@ h1{font-size:20px}h2{font-size:15px;color:var(--t2);margin:16px 0 10px;border-bo
 #pw-gate input{padding:10px 16px;font-size:16px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);width:240px;text-align:center;outline:none}
 #pw-gate input:focus{border-color:var(--t3)}
 #pw-gate .hint{color:var(--t2);font-size:12px;margin-top:8px}
+#setup-guide{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9998;align-items:center;justify-content:center}
+#setup-guide.show{display:flex}
+#setup-guide .box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:440px;text-align:center}
+#setup-guide .box a{color:var(--t3)}
 </style>
 </head>
 <body>
@@ -55,7 +59,7 @@ h1{font-size:20px}h2{font-size:15px;color:var(--t2);margin:16px 0 10px;border-bo
 <div style="display:flex;justify-content:space-between;align-items:center">
 <div>
 <h1>Gold Tide · 黄金潮汐交易看板</h1>
-<div style="font-size:12px;color:var(--t2)">沪金AU0 | <span class="live-dot on" id="live-dot"></span><span id="live-status">实时</span> | 模型更新: 2026-07-22 18:29 CST</div>
+<div style="font-size:12px;color:var(--t2)">沪金AU0 | <span class="live-dot on" id="live-dot"></span><span id="live-status">实时</span> | 模型更新: 2026-07-22 18:45 CST</div>
 <button class="btn-refresh" onclick="triggerRefresh()" id="btn-refresh">🔄 更新模型数据</button>
 </div>
 <div style="text-align:right">
@@ -65,6 +69,19 @@ h1{font-size:20px}h2{font-size:15px;color:var(--t2);margin:16px 0 10px;border-bo
 </div>
 
 <div id="toast" class="toast"></div>
+
+<div id="setup-guide" class="show" style="display:none">
+  <div class="box">
+    <h3 style="margin-bottom:12px">⚡ 一键更新设置（仅需一次）</h3>
+    <p style="font-size:13px;color:var(--t2);margin-bottom:8px">1. 点击下方链接生成Token</p>
+    <a href="https://github.com/settings/tokens/new?scopes=workflow&description=Gold+Tide" target="_blank" style="font-size:14px">→ 打开GitHub生成Token ←</a>
+    <p style="font-size:13px;color:var(--t2);margin:8px 0">2. 拉到页面底部点 <b>Generate token</b></p>
+    <p style="font-size:13px;color:var(--t2);margin:8px 0">3. 复制生成的Token粘贴到这里:</p>
+    <input type="text" id="token-input" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);margin:8px 0;font-size:13px">
+    <button onclick="saveToken()" style="padding:8px 24px;background:var(--t3);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px">保存并启用一键更新</button>
+    <p style="font-size:11px;color:var(--t2);margin-top:8px;cursor:pointer" onclick="document.getElementById('setup-guide').style.display='none'">以后再说</p>
+  </div>
+</div>
 
 <div class="grid3" style="margin-top:12px">
 <div class="card"><div class="label">模型价格</div><div class="big-num">902<span class="unit">元/克</span></div></div>
@@ -145,7 +162,7 @@ if (localStorage.getItem('gt_auth') === '1') {
 }
 
 // ======================== EMBEDDED MODEL DATA ========================
-const M = {"generated": "2026-07-22 18:29 CST", "current": {"date": "2026-07-22", "price": 901.74, "atr": 17.54, "ma20": 889.0390000000001, "high20": 911.4, "low20": 869.82}, "signal": {"direction": "HOLD", "p_up": 0.4864, "confidence": 0.0136, "stop": 867.0, "target": 937.0, "position": "5%"}, "market_state": {"rsi": 50.0, "bull": false, "vol_regime": 1.0, "vs_ma50": 0.0, "ip_ret": 0.0, "ip_energy_trend": 0.0}, "recent60": [{"date": "2026-04-24", "close": 1032.12}, {"date": "2026-04-27", "close": 1039.42}, {"date": "2026-04-28", "close": 1022.1}, {"date": "2026-04-29", "close": 1011.88}, {"date": "2026-04-30", "close": 1016.12}, {"date": "2026-05-06", "close": 1028.48}, {"date": "2026-05-07", "close": 1040.98}, {"date": "2026-05-08", "close": 1038.22}, {"date": "2026-05-11", "close": 1026.8}, {"date": "2026-05-12", "close": 1030.12}, {"date": "2026-05-13", "close": 1030.56}, {"date": "2026-05-14", "close": 1029.6}, {"date": "2026-05-15", "close": 1004.38}, {"date": "2026-05-18", "close": 999.8}, {"date": "2026-05-19", "close": 1002.18}, {"date": "2026-05-20", "close": 986.64}, {"date": "2026-05-21", "close": 995.38}, {"date": "2026-05-22", "close": 995.76}, {"date": "2026-05-25", "close": 1001.4}, {"date": "2026-05-26", "close": 995.0}, {"date": "2026-05-27", "close": 983.56}, {"date": "2026-05-28", "close": 961.18}, {"date": "2026-05-29", "close": 989.4}, {"date": "2026-06-01", "close": 983.58}, {"date": "2026-06-02", "close": 990.6}, {"date": "2026-06-03", "close": 977.08}, {"date": "2026-06-04", "close": 977.94}, {"date": "2026-06-05", "close": 974.02}, {"date": "2026-06-08", "close": 942.2}, {"date": "2026-06-09", "close": 947.04}, {"date": "2026-06-10", "close": 919.32}, {"date": "2026-06-11", "close": 895.0}, {"date": "2026-06-12", "close": 911.62}, {"date": "2026-06-15", "close": 938.94}, {"date": "2026-06-16", "close": 941.72}, {"date": "2026-06-17", "close": 942.94}, {"date": "2026-06-18", "close": 937.96}, {"date": "2026-06-22", "close": 916.92}, {"date": "2026-06-23", "close": 897.9}, {"date": "2026-06-24", "close": 896.04}, {"date": "2026-06-25", "close": 872.0}, {"date": "2026-06-26", "close": 883.3}, {"date": "2026-06-29", "close": 888.72}, {"date": "2026-06-30", "close": 881.24}, {"date": "2026-07-01", "close": 869.82}, {"date": "2026-07-02", "close": 890.66}, {"date": "2026-07-03", "close": 911.4}, {"date": "2026-07-06", "close": 907.82}, {"date": "2026-07-07", "close": 903.76}, {"date": "2026-07-08", "close": 902.76}, {"date": "2026-07-09", "close": 898.86}, {"date": "2026-07-10", "close": 897.94}, {"date": "2026-07-13", "close": 885.94}, {"date": "2026-07-14", "close": 880.26}, {"date": "2026-07-15", "close": 880.1}, {"date": "2026-07-16", "close": 879.18}, {"date": "2026-07-17", "close": 876.24}, {"date": "2026-07-20", "close": 876.64}, {"date": "2026-07-21", "close": 892.4}, {"date": "2026-07-22", "close": 901.74}], "tides": [{"id": "I6", "dir": "down", "start": "2025-04-22", "end": "2025-05-15", "from": 831.42, "to": 739.82, "height": 91.59999999999991, "days": 14, "score": 56.2}, {"id": "J6", "dir": "up", "start": "2025-05-15", "end": "2025-06-13", "from": 739.82, "to": 794.36, "height": 54.539999999999964, "days": 20, "score": 48.4}, {"id": "K6", "dir": "down", "start": "2025-06-13", "end": "2025-07-31", "from": 794.36, "to": 770.28, "height": 24.08000000000004, "days": 34, "score": 42.5}, {"id": "L6", "dir": "up", "start": "2025-07-31", "end": "2025-10-17", "from": 770.28, "to": 999.8, "height": 229.51999999999998, "days": 50, "score": 55.8}, {"id": "M6", "dir": "down", "start": "2025-10-17", "end": "2025-10-28", "from": 999.8, "to": 901.38, "height": 98.41999999999996, "days": 7, "score": 42.4}, {"id": "N6", "dir": "up", "start": "2025-10-28", "end": "2026-01-29", "from": 901.38, "to": 1249.12, "height": 347.7399999999999, "days": 65, "score": 54.3}, {"id": "O6", "dir": "down", "start": "2026-01-29", "end": "2026-02-02", "from": 1249.12, "to": 1008.6, "height": 240.51999999999987, "days": 2, "score": 71.7}, {"id": "P6", "dir": "up", "start": "2026-02-02", "end": "2026-03-02", "from": 1008.6, "to": 1197.22, "height": 188.62, "days": 14, "score": 51.8}, {"id": "Q6", "dir": "down", "start": "2026-03-02", "end": "2026-03-23", "from": 1197.22, "to": 942.8, "height": 254.42000000000007, "days": 15, "score": 68.3}, {"id": "R6", "dir": "up", "start": "2026-03-23", "end": "2026-04-08", "from": 942.8, "to": 1062.0, "height": 119.20000000000005, "days": 11, "score": 44.9}], "momentum_trend": [{"tide": "I6", "dir": "down", "score": 56.2}, {"tide": "J6", "dir": "up", "score": 48.4}, {"tide": "K6", "dir": "down", "score": 42.5}, {"tide": "L6", "dir": "up", "score": 55.8}, {"tide": "M6", "dir": "down", "score": 42.4}, {"tide": "N6", "dir": "up", "score": 54.3}, {"tide": "O6", "dir": "down", "score": 71.7}, {"tide": "P6", "dir": "up", "score": 51.8}, {"tide": "Q6", "dir": "down", "score": 68.3}, {"tide": "R6", "dir": "up", "score": 44.9}], "in_progress_small": [{"id": "R6a", "dir": "down", "from": 1062.0, "to": 1011.88, "height": 50.120000000000005, "days": 15, "energy": 751.8000000000001}, {"id": "R6b", "dir": "up", "from": 1011.88, "to": 1040.98, "height": 29.100000000000023, "days": 3, "energy": 87.30000000000007}, {"id": "R6c", "dir": "down", "from": 1040.98, "to": 961.18, "height": 79.80000000000007, "days": 15, "energy": 1197.000000000001}, {"id": "R6d", "dir": "up", "from": 961.18, "to": 990.6, "height": 29.420000000000073, "days": 3, "energy": 88.26000000000022}, {"id": "R6e", "dir": "down", "from": 990.6, "to": 895.0, "height": 95.60000000000002, "days": 7, "energy": 669.2000000000002}, {"id": "R6f", "dir": "up", "from": 895.0, "to": 942.94, "height": 47.940000000000055, "days": 4, "energy": 191.76000000000022}, {"id": "R6g", "dir": "down", "from": 942.94, "to": 869.82, "height": 73.12, "days": 9, "energy": 658.08}, {"id": "R6h", "dir": "up", "from": 869.82, "to": 911.4, "height": 41.57999999999993, "days": 2, "energy": 83.15999999999985}, {"id": "R6i", "dir": "down", "from": 911.4, "to": 876.24, "height": 35.15999999999997, "days": 10, "energy": 351.5999999999997}]};
+const M = {"generated": "2026-07-22 18:45 CST", "current": {"date": "2026-07-22", "price": 901.74, "atr": 17.54, "ma20": 889.0390000000001, "high20": 911.4, "low20": 869.82}, "signal": {"direction": "HOLD", "p_up": 0.4864, "confidence": 0.0136, "stop": 867.0, "target": 937.0, "position": "5%"}, "market_state": {"rsi": 50.0, "bull": false, "vol_regime": 1.0, "vs_ma50": 0.0, "ip_ret": 0.0, "ip_energy_trend": 0.0}, "recent60": [{"date": "2026-04-24", "close": 1032.12}, {"date": "2026-04-27", "close": 1039.42}, {"date": "2026-04-28", "close": 1022.1}, {"date": "2026-04-29", "close": 1011.88}, {"date": "2026-04-30", "close": 1016.12}, {"date": "2026-05-06", "close": 1028.48}, {"date": "2026-05-07", "close": 1040.98}, {"date": "2026-05-08", "close": 1038.22}, {"date": "2026-05-11", "close": 1026.8}, {"date": "2026-05-12", "close": 1030.12}, {"date": "2026-05-13", "close": 1030.56}, {"date": "2026-05-14", "close": 1029.6}, {"date": "2026-05-15", "close": 1004.38}, {"date": "2026-05-18", "close": 999.8}, {"date": "2026-05-19", "close": 1002.18}, {"date": "2026-05-20", "close": 986.64}, {"date": "2026-05-21", "close": 995.38}, {"date": "2026-05-22", "close": 995.76}, {"date": "2026-05-25", "close": 1001.4}, {"date": "2026-05-26", "close": 995.0}, {"date": "2026-05-27", "close": 983.56}, {"date": "2026-05-28", "close": 961.18}, {"date": "2026-05-29", "close": 989.4}, {"date": "2026-06-01", "close": 983.58}, {"date": "2026-06-02", "close": 990.6}, {"date": "2026-06-03", "close": 977.08}, {"date": "2026-06-04", "close": 977.94}, {"date": "2026-06-05", "close": 974.02}, {"date": "2026-06-08", "close": 942.2}, {"date": "2026-06-09", "close": 947.04}, {"date": "2026-06-10", "close": 919.32}, {"date": "2026-06-11", "close": 895.0}, {"date": "2026-06-12", "close": 911.62}, {"date": "2026-06-15", "close": 938.94}, {"date": "2026-06-16", "close": 941.72}, {"date": "2026-06-17", "close": 942.94}, {"date": "2026-06-18", "close": 937.96}, {"date": "2026-06-22", "close": 916.92}, {"date": "2026-06-23", "close": 897.9}, {"date": "2026-06-24", "close": 896.04}, {"date": "2026-06-25", "close": 872.0}, {"date": "2026-06-26", "close": 883.3}, {"date": "2026-06-29", "close": 888.72}, {"date": "2026-06-30", "close": 881.24}, {"date": "2026-07-01", "close": 869.82}, {"date": "2026-07-02", "close": 890.66}, {"date": "2026-07-03", "close": 911.4}, {"date": "2026-07-06", "close": 907.82}, {"date": "2026-07-07", "close": 903.76}, {"date": "2026-07-08", "close": 902.76}, {"date": "2026-07-09", "close": 898.86}, {"date": "2026-07-10", "close": 897.94}, {"date": "2026-07-13", "close": 885.94}, {"date": "2026-07-14", "close": 880.26}, {"date": "2026-07-15", "close": 880.1}, {"date": "2026-07-16", "close": 879.18}, {"date": "2026-07-17", "close": 876.24}, {"date": "2026-07-20", "close": 876.64}, {"date": "2026-07-21", "close": 892.4}, {"date": "2026-07-22", "close": 901.74}], "tides": [{"id": "I6", "dir": "down", "start": "2025-04-22", "end": "2025-05-15", "from": 831.42, "to": 739.82, "height": 91.59999999999991, "days": 14, "score": 56.2}, {"id": "J6", "dir": "up", "start": "2025-05-15", "end": "2025-06-13", "from": 739.82, "to": 794.36, "height": 54.539999999999964, "days": 20, "score": 48.4}, {"id": "K6", "dir": "down", "start": "2025-06-13", "end": "2025-07-31", "from": 794.36, "to": 770.28, "height": 24.08000000000004, "days": 34, "score": 42.5}, {"id": "L6", "dir": "up", "start": "2025-07-31", "end": "2025-10-17", "from": 770.28, "to": 999.8, "height": 229.51999999999998, "days": 50, "score": 55.8}, {"id": "M6", "dir": "down", "start": "2025-10-17", "end": "2025-10-28", "from": 999.8, "to": 901.38, "height": 98.41999999999996, "days": 7, "score": 42.4}, {"id": "N6", "dir": "up", "start": "2025-10-28", "end": "2026-01-29", "from": 901.38, "to": 1249.12, "height": 347.7399999999999, "days": 65, "score": 54.3}, {"id": "O6", "dir": "down", "start": "2026-01-29", "end": "2026-02-02", "from": 1249.12, "to": 1008.6, "height": 240.51999999999987, "days": 2, "score": 71.7}, {"id": "P6", "dir": "up", "start": "2026-02-02", "end": "2026-03-02", "from": 1008.6, "to": 1197.22, "height": 188.62, "days": 14, "score": 51.8}, {"id": "Q6", "dir": "down", "start": "2026-03-02", "end": "2026-03-23", "from": 1197.22, "to": 942.8, "height": 254.42000000000007, "days": 15, "score": 68.3}, {"id": "R6", "dir": "up", "start": "2026-03-23", "end": "2026-04-08", "from": 942.8, "to": 1062.0, "height": 119.20000000000005, "days": 11, "score": 44.9}], "momentum_trend": [{"tide": "I6", "dir": "down", "score": 56.2}, {"tide": "J6", "dir": "up", "score": 48.4}, {"tide": "K6", "dir": "down", "score": 42.5}, {"tide": "L6", "dir": "up", "score": 55.8}, {"tide": "M6", "dir": "down", "score": 42.4}, {"tide": "N6", "dir": "up", "score": 54.3}, {"tide": "O6", "dir": "down", "score": 71.7}, {"tide": "P6", "dir": "up", "score": 51.8}, {"tide": "Q6", "dir": "down", "score": 68.3}, {"tide": "R6", "dir": "up", "score": 44.9}], "in_progress_small": [{"id": "R6a", "dir": "down", "from": 1062.0, "to": 1011.88, "height": 50.120000000000005, "days": 15, "energy": 751.8000000000001}, {"id": "R6b", "dir": "up", "from": 1011.88, "to": 1040.98, "height": 29.100000000000023, "days": 3, "energy": 87.30000000000007}, {"id": "R6c", "dir": "down", "from": 1040.98, "to": 961.18, "height": 79.80000000000007, "days": 15, "energy": 1197.000000000001}, {"id": "R6d", "dir": "up", "from": 961.18, "to": 990.6, "height": 29.420000000000073, "days": 3, "energy": 88.26000000000022}, {"id": "R6e", "dir": "down", "from": 990.6, "to": 895.0, "height": 95.60000000000002, "days": 7, "energy": 669.2000000000002}, {"id": "R6f", "dir": "up", "from": 895.0, "to": 942.94, "height": 47.940000000000055, "days": 4, "energy": 191.76000000000022}, {"id": "R6g", "dir": "down", "from": 942.94, "to": 869.82, "height": 73.12, "days": 9, "energy": 658.08}, {"id": "R6h", "dir": "up", "from": 869.82, "to": 911.4, "height": 41.57999999999993, "days": 2, "energy": 83.15999999999985}, {"id": "R6i", "dir": "down", "from": 911.4, "to": 876.24, "height": 35.15999999999997, "days": 10, "energy": 351.5999999999997}]};
 
 // ======================== LIVE PRICE FETCH (15s interval) ========================
 async function fetchLivePrice() {
@@ -254,33 +271,54 @@ function showToast(msg, isOk) {
 
 async function triggerRefresh() {
   const btn = document.getElementById('btn-refresh');
-  btn.disabled = true;
-  btn.textContent = '已打开Actions页面...';
-  
   let token = localStorage.getItem('gh_token');
-  if (token) {
-    try {
-      await fetch('https://api.github.com/repos/ANGIE-YQ/gold-tide-dashboard/actions/workflows/update-dashboard.yml/dispatches', {
-        method:'POST', headers:{'Authorization':'token '+token,'Accept':'application/vnd.github+json'},
-        body: JSON.stringify({ref:'main'})
-      });
-      showToast('已触发!约1-2分钟后刷新页面。', true);
-    } catch(e) {
-      window.open('https://github.com/ANGIE-YQ/gold-tide-dashboard/actions', '_blank');
-      showToast('请点击Run workflow手动触发', false);
-    }
-  } else {
-    window.open('https://github.com/ANGIE-YQ/gold-tide-dashboard/actions', '_blank');
-    showToast('在Actions页面点Run workflow即可', false);
+  
+  if (!token) {
+    // No token - show setup guide
+    document.getElementById('setup-guide').style.display = 'block';
+    return;
   }
-  setTimeout(() => { btn.disabled = false; btn.textContent = '更新模型数据'; }, 3000);
+  
+  btn.disabled = true;
+  btn.textContent = '触发中...';
+  
+  try {
+    const resp = await fetch('https://api.github.com/repos/ANGIE-YQ/gold-tide-dashboard/actions/workflows/update-dashboard.yml/dispatches', {
+      method:'POST',
+      headers: {'Authorization':'token '+token, 'Accept':'application/vnd.github+json'},
+      body: JSON.stringify({ref:'main'})
+    });
+    if (resp.status === 204) {
+      showToast('✅ 已触发! 约1-2分钟后刷新页面。', true);
+      btn.textContent = '刷新页面';
+      btn.onclick = () => location.reload();
+    } else {
+      const err = await resp.text();
+      if (resp.status === 404) {
+        showToast('工作流未配置,请先将WORKFLOW-SETUP.yml移到.github/workflows/', false);
+      } else {
+        showToast('触发失败('+resp.status+'), Token可能过期。双击标题重新设置。', false);
+      }
+      btn.disabled = false;
+      btn.textContent = '更新模型数据';
+    }
+  } catch(e) {
+    showToast('网络错误: '+e.message, false);
+    btn.disabled = false;
+    btn.textContent = '更新模型数据';
+  }
 }
 
-// Double-click title to set token
-document.querySelector('h1').ondblclick = function() {
-  const t = prompt('GitHub Token (需要workflow权限):');
-  if(t) { localStorage.setItem('gh_token', t); showToast('Token已保存!', true); }
-};
+function saveToken() {
+  const t = document.getElementById('token-input').value.trim();
+  if (t.startsWith('ghp_') || t.startsWith('github_pat_')) {
+    localStorage.setItem('gh_token', t);
+    document.getElementById('setup-guide').style.display = 'none';
+    showToast('Token已保存! 现在可以一键更新了。', true);
+  } else {
+    showToast('Token格式不对,应以ghp_或github_pat_开头', false);
+  }
+}
 
 // Init
 window.onload=function(){
