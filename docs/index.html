@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Gold Tide · 黄金潮汐交易看板</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--t2:#8b949e;--t3:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d2991d;--up:#238636;--down:#da3633}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px;max-width:960px;margin:0 auto}
+h1{font-size:20px}h2{font-size:15px;color:var(--t2);margin:16px 0 10px;border-bottom:1px solid var(--border);padding-bottom:4px}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
+.live-dot.on{background:var(--green)} .live-dot.off{background:var(--yellow)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px}
+.big-num{font-size:30px;font-weight:700} .unit{font-size:13px;color:var(--t2)}
+.label{font-size:11px;color:var(--t2);margin-bottom:2px}
+.badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600}
+.b-buy{background:var(--up);color:#fff} .b-sell{background:var(--down);color:#fff} .b-hold{background:var(--yellow);color:#000}
+.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1c2128;font-size:13px}
+.row:last-child{border-bottom:none} .row .k{color:var(--t2)} .row .v{font-weight:600}
+.bar-w{background:#1c2128;border-radius:3px;height:14px;overflow:hidden;width:100px;display:inline-block}
+.bar-f{height:100%;border-radius:3px;background:var(--t3)}
+.p-bar{height:6px;border-radius:3px;background:#1c2128;margin:10px 0;position:relative}
+.p-fill{height:100%;border-radius:3px;position:absolute;left:0;background:linear-gradient(90deg,var(--red),var(--yellow),var(--green))}
+.p-mid{position:absolute;top:-4px;width:2px;height:14px;background:var(--text);left:50%}
+.guide{background:#1a2332;border-left:3px solid var(--t3);padding:10px 14px;margin:12px 0;font-size:12px;line-height:1.7;border-radius:0 4px 4px 0}
+.guide b{color:var(--t3)}
+.footer{text-align:center;color:var(--t2);font-size:11px;margin-top:20px}
+.price-update{font-size:10px;color:var(--t2);margin-top:4px}
+</style>
+</head>
+<body>
+
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div>
+<h1>Gold Tide · 黄金潮汐交易看板</h1>
+<div style="font-size:12px;color:var(--t2)">沪金AU0 | <span class="live-dot on" id="live-dot"></span><span id="live-status">实时</span> | 模型更新: 2026-07-22 16:43 CST</div>
+</div>
+<div style="text-align:right">
+<div style="font-size:28px;font-weight:700" id="live-price">--</div>
+<div class="price-update" id="live-change">加载中...</div>
+</div>
+</div>
+
+<div class="grid3" style="margin-top:12px">
+<div class="card"><div class="label">模型价格</div><div class="big-num">892<span class="unit">元/克</span></div></div>
+<div class="card"><div class="label">20日均线</div><div class="big-num">889<span class="unit">vs +0.4%</span></div></div>
+<div class="card"><div class="label">ATR波动率</div><div class="big-num">17.5<span class="unit">20日</span></div></div>
+</div>
+
+<h2>核心信号</h2>
+<div class="card" style="text-align:center;padding:20px">
+<div class="badge b-hold" style="font-size:16px;padding:4px 16px">HOLD</div>
+<div style="font-size:42px;font-weight:800;margin:10px 0;color:var(--yellow)">P(涨)=0.503</div>
+<div style="color:var(--t2)">置信度: 0.4% (弱)</div>
+<div class="p-bar" style="max-width:280px;margin:10px auto"><div class="p-fill" style="width:50.349999999999994%"></div><div class="p-mid"></div></div>
+<div style="display:flex;gap:24px;justify-content:center;margin-top:12px">
+<div><span class="label">止损</span><br><strong style="color:var(--red)">857</strong></div>
+<div><span class="label">目标</span><br><strong style="color:var(--green)">927</strong></div>
+<div><span class="label">仓位</span><br><strong>5%</strong></div>
+</div>
+</div>
+
+<h2>市场状态</h2>
+<div class="grid4" id="market-state"></div>
+
+<h2>潮汐动能趋势(近10大潮汐)</h2>
+<div class="card"><svg id="mom-svg" width="100%" height="160"></svg></div>
+
+<h2>进行中段微观结构(能量标注)</h2>
+<div class="card"><svg id="ip-svg" width="100%" height="180"></svg></div>
+
+<h2>价格走势(近60日, 含潮汐标注)</h2>
+<div class="card"><svg id="price-svg" width="100%" height="260"></svg></div>
+
+<h2>阅读指南</h2>
+<div class="guide">
+<b>核心信号</b> — P(涨)>0.55做多, <0.45做空。置信度>0.15强信号。右上角实时价格来自公开API(15秒刷新)。<br>
+<b>潮汐图</b> — 蓝=上涨潮汐, 红=下跌潮汐, 标注为双名法。R6a=R大潮汐第a小潮汐。<br>
+<b>进行中段</b> — 最后已确认潮汐结束后的"未完成"段。E值=能量(高度×时间), 比较同向潮汐能量判断趋势衰竭。<br>
+<b>模型预测未来10个交易日方向, 非日内, 非长期。</b>
+</div>
+
+<div class="footer">AI统计模型输出,仅供参考,不构成投资建议 | Data: NeoData/Sina · Model: XGBoost+Platt · Updated daily via GitHub Actions</div>
+
+<script>
+// ======================== EMBEDDED MODEL DATA ========================
+const M = {"generated": "2026-07-22 16:43 CST", "current": {"date": "2026-07-21", "price": 892.4, "atr": 17.465999999999998, "ma20": 888.7540000000001, "high20": 911.4, "low20": 869.82}, "signal": {"direction": "HOLD", "p_up": 0.5035, "confidence": 0.0035, "stop": 857.0, "target": 927.0, "position": "5%"}, "market_state": {"rsi": 50.0, "bull": false, "vol_regime": 1.0, "vs_ma50": 0.0, "ip_ret": 0.0, "ip_energy_trend": 0.0}, "recent60": [{"date": "2026-04-23", "close": 1040.06}, {"date": "2026-04-24", "close": 1032.12}, {"date": "2026-04-27", "close": 1039.42}, {"date": "2026-04-28", "close": 1022.1}, {"date": "2026-04-29", "close": 1011.88}, {"date": "2026-04-30", "close": 1016.12}, {"date": "2026-05-06", "close": 1028.48}, {"date": "2026-05-07", "close": 1040.98}, {"date": "2026-05-08", "close": 1038.22}, {"date": "2026-05-11", "close": 1026.8}, {"date": "2026-05-12", "close": 1030.12}, {"date": "2026-05-13", "close": 1030.56}, {"date": "2026-05-14", "close": 1029.6}, {"date": "2026-05-15", "close": 1004.38}, {"date": "2026-05-18", "close": 999.8}, {"date": "2026-05-19", "close": 1002.18}, {"date": "2026-05-20", "close": 986.64}, {"date": "2026-05-21", "close": 995.38}, {"date": "2026-05-22", "close": 995.76}, {"date": "2026-05-25", "close": 1001.4}, {"date": "2026-05-26", "close": 995.0}, {"date": "2026-05-27", "close": 983.56}, {"date": "2026-05-28", "close": 961.18}, {"date": "2026-05-29", "close": 989.4}, {"date": "2026-06-01", "close": 983.58}, {"date": "2026-06-02", "close": 990.6}, {"date": "2026-06-03", "close": 977.08}, {"date": "2026-06-04", "close": 977.94}, {"date": "2026-06-05", "close": 974.02}, {"date": "2026-06-08", "close": 942.2}, {"date": "2026-06-09", "close": 947.04}, {"date": "2026-06-10", "close": 919.32}, {"date": "2026-06-11", "close": 895.0}, {"date": "2026-06-12", "close": 911.62}, {"date": "2026-06-15", "close": 938.94}, {"date": "2026-06-16", "close": 941.72}, {"date": "2026-06-17", "close": 942.94}, {"date": "2026-06-18", "close": 937.96}, {"date": "2026-06-22", "close": 916.92}, {"date": "2026-06-23", "close": 897.9}, {"date": "2026-06-24", "close": 896.04}, {"date": "2026-06-25", "close": 872.0}, {"date": "2026-06-26", "close": 883.3}, {"date": "2026-06-29", "close": 888.72}, {"date": "2026-06-30", "close": 881.24}, {"date": "2026-07-01", "close": 869.82}, {"date": "2026-07-02", "close": 890.66}, {"date": "2026-07-03", "close": 911.4}, {"date": "2026-07-06", "close": 907.82}, {"date": "2026-07-07", "close": 903.76}, {"date": "2026-07-08", "close": 902.76}, {"date": "2026-07-09", "close": 898.86}, {"date": "2026-07-10", "close": 897.94}, {"date": "2026-07-13", "close": 885.94}, {"date": "2026-07-14", "close": 880.26}, {"date": "2026-07-15", "close": 880.1}, {"date": "2026-07-16", "close": 879.18}, {"date": "2026-07-17", "close": 876.24}, {"date": "2026-07-20", "close": 876.64}, {"date": "2026-07-21", "close": 892.4}], "tides": [{"id": "I6", "dir": "down", "start": "2025-04-22", "end": "2025-05-15", "from": 831.42, "to": 739.82, "height": 91.59999999999991, "days": 14, "score": 56.2}, {"id": "J6", "dir": "up", "start": "2025-05-15", "end": "2025-06-13", "from": 739.82, "to": 794.36, "height": 54.539999999999964, "days": 20, "score": 48.4}, {"id": "K6", "dir": "down", "start": "2025-06-13", "end": "2025-07-31", "from": 794.36, "to": 770.28, "height": 24.08000000000004, "days": 34, "score": 42.5}, {"id": "L6", "dir": "up", "start": "2025-07-31", "end": "2025-10-17", "from": 770.28, "to": 999.8, "height": 229.51999999999998, "days": 50, "score": 55.8}, {"id": "M6", "dir": "down", "start": "2025-10-17", "end": "2025-10-28", "from": 999.8, "to": 901.38, "height": 98.41999999999996, "days": 7, "score": 42.4}, {"id": "N6", "dir": "up", "start": "2025-10-28", "end": "2026-01-29", "from": 901.38, "to": 1249.12, "height": 347.7399999999999, "days": 65, "score": 54.3}, {"id": "O6", "dir": "down", "start": "2026-01-29", "end": "2026-02-02", "from": 1249.12, "to": 1008.6, "height": 240.51999999999987, "days": 2, "score": 71.7}, {"id": "P6", "dir": "up", "start": "2026-02-02", "end": "2026-03-02", "from": 1008.6, "to": 1197.22, "height": 188.62, "days": 14, "score": 51.8}, {"id": "Q6", "dir": "down", "start": "2026-03-02", "end": "2026-03-23", "from": 1197.22, "to": 942.8, "height": 254.42000000000007, "days": 15, "score": 68.3}, {"id": "R6", "dir": "up", "start": "2026-03-23", "end": "2026-04-08", "from": 942.8, "to": 1062.0, "height": 119.20000000000005, "days": 11, "score": 50.4}], "momentum_trend": [{"tide": "I6", "dir": "down", "score": 56.2}, {"tide": "J6", "dir": "up", "score": 48.4}, {"tide": "K6", "dir": "down", "score": 42.5}, {"tide": "L6", "dir": "up", "score": 55.8}, {"tide": "M6", "dir": "down", "score": 42.4}, {"tide": "N6", "dir": "up", "score": 54.3}, {"tide": "O6", "dir": "down", "score": 71.7}, {"tide": "P6", "dir": "up", "score": 51.8}, {"tide": "Q6", "dir": "down", "score": 68.3}, {"tide": "R6", "dir": "up", "score": 50.4}], "in_progress_small": [{"id": "R6a", "dir": "down", "from": 1062.0, "to": 1011.88, "height": 50.120000000000005, "days": 15, "energy": 751.8000000000001}, {"id": "R6b", "dir": "up", "from": 1011.88, "to": 1040.98, "height": 29.100000000000023, "days": 3, "energy": 87.30000000000007}, {"id": "R6c", "dir": "down", "from": 1040.98, "to": 961.18, "height": 79.80000000000007, "days": 15, "energy": 1197.000000000001}, {"id": "R6d", "dir": "up", "from": 961.18, "to": 990.6, "height": 29.420000000000073, "days": 3, "energy": 88.26000000000022}, {"id": "R6e", "dir": "down", "from": 990.6, "to": 895.0, "height": 95.60000000000002, "days": 7, "energy": 669.2000000000002}, {"id": "R6f", "dir": "up", "from": 895.0, "to": 942.94, "height": 47.940000000000055, "days": 4, "energy": 191.76000000000022}, {"id": "R6g", "dir": "down", "from": 942.94, "to": 869.82, "height": 73.12, "days": 9, "energy": 658.08}, {"id": "R6h", "dir": "up", "from": 869.82, "to": 911.4, "height": 41.57999999999993, "days": 2, "energy": 83.15999999999985}]};
+
+// ======================== LIVE PRICE FETCH (15s interval) ========================
+async function fetchLivePrice() {
+  try {
+    // Use Sina Finance API for AU0 futures
+    const resp = await fetch('https://hq.sinajs.cn/list=au0', {
+      headers: { 'Referer': 'https://finance.sina.com.cn' }
+    });
+    const text = await resp.text();
+    // Parse: var hq_str_au0="...";
+    const match = text.match(/"([^"]+)"/);
+    if (!match) throw new Error('parse failed');
+    const parts = match[1].split(',');
+    // parts[0]=name, parts[3]=current price, parts[2]=change%, parts[1]=open
+    const price = parseFloat(parts[3]);
+    const changePct = parseFloat(parts[2]);
+    if (isNaN(price)) throw new Error('price NaN');
+    document.getElementById('live-price').textContent = price.toFixed(2);
+    const sign = changePct >= 0 ? '+' : '';
+    document.getElementById('live-change').innerHTML = 
+      `<span style="color:${changePct>=0?'var(--green)':'var(--red)'}">${sign}${changePct.toFixed(2)}%</span>`;
+    document.getElementById('live-dot').className = 'live-dot on';
+    document.getElementById('live-status').textContent = '实时';
+  } catch(e) {
+    document.getElementById('live-dot').className = 'live-dot off';
+    document.getElementById('live-status').textContent = '离线';
+    console.log('Live price fetch failed:', e.message);
+  }
+}
+
+// ======================== RENDER STATIC CHARTS ========================
+function renderMarketState() {
+  const s = M.market_state;
+  const items = [
+    ['牛/熊', (s.bull?'牛市':'熊市/调整'), s.bull?'var(--green)':'var(--red)', 'vs 250日均线'],
+    ['波动率', s.vol_regime.toFixed(1)+'x常态', s.vol_regime<0.7?'var(--green)':(s.vol_regime>1.5?'var(--red)':'var(--text)'), s.vol_regime<0.7?'低波动(可加仓)':(s.vol_regime>1.5?'高波动(降仓)':'正常')],
+    ['RSI(14)', s.rsi.toFixed(0), s.rsi<30?'var(--green)':(s.rsi>70?'var(--red)':'var(--text)'), s.rsi<30?'超卖':(s.rsi>70?'超买':'中性')],
+    ['vs 50日均', s.vs_ma50.toFixed(1)+'%', s.vs_ma50<0?'var(--red)':'var(--green)', s.vs_ma50<-5?'深度超卖':''],
+  ];
+  document.getElementById('market-state').innerHTML = items.map(([l,v,c,d])=>`<div class="card"><div class="label">${l}</div><strong style="color:${c}">${v}</strong><div style="font-size:10px;color:var(--t2)">${d}</div></div>`).join('');
+}
+
+function renderPriceChart() {
+  const svg=document.getElementById('price-svg'), w=svg.clientWidth||900, h=260, pad={t:15,r:30,b:35,l:50}, pw=w-pad.l-pad.r, ph=h-pad.t-pad.b;
+  const data=M.recent60, prices=data.map(d=>d.close), pmin=Math.min(...prices)*0.98, pmax=Math.max(...prices)*1.02;
+  const sY=v=>pad.t+ph*(1-(v-pmin)/(pmax-pmin)), sX=i=>pad.l+(i/(data.length-1))*pw;
+  let html='';
+  for(let i=0;i<5;i++){const y=pad.t+ph*i/4,v=pmax-(pmax-pmin)*i/4;html+=`<line x1="${pad.l}" x2="${pad.l+pw}" y1="${y}" y2="${y}" stroke="#1c2128"/><text x="${pad.l-6}" y="${y+4}" text-anchor="end" fill="#8b949e" font-size="10">${v.toFixed(0)}</text>`}
+  let dM=''; data.forEach((d,i)=>{const x=sX(i),y=sY(d.close);dM+=(i===0?'M':'L')+`${x},${y} `}); html+=`<path d="${dM}" fill="none" stroke="#c9d1d9" stroke-width="1.5"/>`;
+  // MA20 overlay
+  let maD=''; for(let i=19;i<data.length;i++){const avg=data.slice(i-19,i+1).reduce((s,d)=>s+d.close,0)/20;maD+=(i===19?'M':'L')+`${sX(i)},${sY(avg)} `} html+=`<path d="${maD}" fill="none" stroke="#d2991d" stroke-width="1" stroke-dasharray="3,2"/>`;
+  // Last price marker
+  const lx=sX(data.length-1),ly=sY(data[data.length-1].close);
+  html+=`<circle cx="${lx}" cy="${ly}" r="3" fill="#58a6ff"/><text x="${lx}" y="${ly-8}" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="700">${data[data.length-1].close.toFixed(0)}</text>`;
+  svg.innerHTML=html;
+}
+
+function renderMomChart() {
+  const svg=document.getElementById('mom-svg'), w=svg.clientWidth||900, h=160, pad={t:15,r:20,b:35,l:35}, pw=w-pad.l-pad.r, ph=h-pad.t-pad.b;
+  const data=M.momentum_trend.slice(-10);
+  let html=`<line x1="${pad.l}" x2="${pad.l+pw}" y1="${pad.t+ph/2}" y2="${pad.t+ph/2}" stroke="#30363d" stroke-dasharray="3,2"/><text x="${pad.l-5}" y="${pad.t+ph/2+4}" text-anchor="end" fill="#8b949e" font-size="9">50</text>`;
+  data.forEach((d,i)=>{
+    const bw=pw/(data.length*2.5), x=pad.l+(i/(data.length-1))*pw, y=pad.t+ph*(1-d.score/100);
+    const col=d.dir==='up'?'#238636':'#da3633';
+    html+=`<rect x="${x-bw/2}" y="${y}" width="${bw}" height="${pad.t+ph-y}" fill="${col}" opacity="0.8" rx="2"/>`;
+    html+=`<text x="${x}" y="${y-5}" text-anchor="middle" fill="${col}" font-size="9">${d.score.toFixed(0)}</text>`;
+    html+=`<text x="${x}" y="${pad.t+ph+15}" text-anchor="middle" fill="#8b949e" font-size="9">${d.tide}</text>`;
+  });
+  svg.innerHTML=html;
+}
+
+function renderIPChart() {
+  const svg=document.getElementById('ip-svg'), w=svg.clientWidth||900, h=180, pad={t:20,r:30,b:35,l:50}, pw=w-pad.l-pad.r, ph=h-pad.t-pad.b;
+  const ts=M.in_progress_small;
+  if(!ts.length){svg.innerHTML='<text x="50%" y="50%" text-anchor="middle" fill="#8b949e">暂无数据</text>';return}
+  let cum=0; const pos=ts.map(t=>{const s=cum;cum+=t.days;return{start:s,end:s+t.days,...t}});
+  const allP=ts.flatMap(t=>[t.from,t.to]), pmin=Math.min(...allP)*0.96, pmax=Math.max(...allP)*1.02;
+  const sY=v=>pad.t+ph*(1-(v-pmin)/(pmax-pmin)), sX=v=>pad.l+(v/cum)*pw;
+  let html='';
+  for(let i=0;i<5;i++){const y=pad.t+ph*i/4;html+=`<line x1="${pad.l}" x2="${pad.l+pw}" y1="${y}" y2="${y}" stroke="#1c2128"/>`}
+  pos.forEach(t=>{
+    const x1=sX(t.start),x2=sX(t.end),y1=sY(t.from),y2=sY(t.to),col=t.dir==='up'?'#238636':'#da3633';
+    html+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="3"/>`;
+    html+=`<text x="${(x1+x2)/2}" y="${Math.min(y1,y2)-7}" text-anchor="middle" fill="${col}" font-size="10">${t.id}</text>`;
+    html+=`<text x="${(x1+x2)/2}" y="${Math.max(y1,y2)+13}" text-anchor="middle" fill="#8b949e" font-size="9">E=${t.energy.toFixed(0)}</text>`;
+  });
+  // Energy trend annotation
+  const upT=pos.filter(t=>t.dir==='up');
+  if(upT.length>=2){
+    const e1=upT[upT.length-2].energy,e2=upT[upT.length-1].energy;
+    const tx=sX(pos[pos.length-1].end)+10;
+    html+=`<text x="${tx}" y="${pad.t+20}" fill="${e2<e1?'#3fb950':'#f85149'}" font-size="10">${e2<e1?'能量渐弱→可能反转':'能量增强→趋势延续'}</text>`;
+    html+=`<text x="${tx}" y="${pad.t+36}" fill="#8b949e" font-size="9">${upT[upT.length-2].energy.toFixed(0)}→${e2.toFixed(0)}(${((e2/e1-1)*100).toFixed(0)}%)</text>`;
+  }
+  svg.innerHTML=html;
+}
+
+// Init
+window.onload=function(){
+  renderMarketState();
+  renderPriceChart();
+  renderMomChart();
+  renderIPChart();
+  fetchLivePrice();
+  setInterval(fetchLivePrice, 15000);
+};
+window.onresize=function(){
+  renderPriceChart();
+  renderMomChart();
+  renderIPChart();
+};
+</script>
+</body>
+</html>
