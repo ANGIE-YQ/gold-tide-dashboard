@@ -1,18 +1,28 @@
-"""将交易模拟器嵌入主看板，作为可展开面板"""
+"""将实盘交易模拟器嵌入主看板，作为可展开面板"""
 import json, re
 
-# 读取回测数据
-with open('sim_result.json', 'r', encoding='utf-8') as f:
-    sim_data = json.load(f)
+# 读取实盘模拟数据（trade_simulator.py --mode live 的输出）
+data_file = 'sim_live_result.json'
+if not __import__('os').path.exists(data_file):
+    data_file = 'sim_result.json'  # fallback
 
-eq = sim_data['equity_curve']
-step = max(1, len(eq) // 300)
-eq_sampled = eq[::step]
-if eq_sampled[-1] != eq[-1]:
-    eq_sampled.append(eq[-1])
+with open(data_file, 'r', encoding='utf-8') as f:
+    live_data = json.load(f)
 
-trades_20 = sim_data['trades'][-20:]
-perf = sim_data['perf']
+# 权益日志
+eq_log = live_data.get('equity_log', [])
+# 取最近300点
+if len(eq_log) > 300:
+    step = len(eq_log) // 300
+    eq_sampled = eq_log[::step] + [eq_log[-1]]
+else:
+    eq_sampled = eq_log
+
+# 最近交易
+trades_20 = live_data.get('recent_trades', [])
+perf = live_data.get('perf', {})
+signal = live_data.get('signal', {})
+position = live_data.get('position', None)
 
 # 读取现有index.html
 with open('docs/index.html', 'r', encoding='utf-8') as f:
@@ -24,35 +34,74 @@ new_btn = old_btn + '\n      <button class="btn-refresh" onclick="toggleSimulato
 index = index.replace(old_btn, new_btn)
 
 # 2. 在 footer 前插入模拟器面板
+# 构建持仓状态HTML
+pos_html = ''
+if position:
+    p_type = '做多' if position['direction'] == 'long' else '做空'
+    p_color = 'var(--t3)' if position['unrealized_pnl'] >= 0 else 'var(--t4)'
+    pos_html = f'''
+    <div style="margin:8px 0;padding:10px;background:var(--bg);border-radius:8px;border-left:3px solid {p_color}">
+      <b style="font-size:14px">当前持仓: {p_type}</b>
+      <span style="margin-left:16px;">入场价: <b>{position["entry_price"]}</b> (自{position["entry_date"]})</span>
+      <span style="margin-left:16px;">浮动盈亏: <b style="color:{p_color}">{position["unrealized_pnl_pct"]:+.2f}%</b></span>
+      <span style="margin-left:16px;">止损: <b style="color:var(--t4)">{position["stop_loss"]}</b></span>
+      <span style="margin-left:16px;">止盈: <b style="color:var(--t3)">{position["take_profit"]}</b></span>
+    </div>'''
+elif signal.get('suggestion'):
+    sug = signal['suggestion']
+    pos_html = f'''
+    <div style="margin:8px 0;padding:10px;background:var(--bg);border-radius:8px;border-left:3px solid var(--t2)">
+      <b style="font-size:14px">今日建议: {sug["action"]}</b>
+      <span style="margin-left:16px;">仓位: <b>{sug["position_pct"]}%</b></span>
+      <span style="margin-left:16px;">止损: <b style="color:var(--t4)">{sug["stop_loss"]}</b></span>
+      <span style="margin-left:16px;">止盈: <b style="color:var(--t3)">{sug["take_profit"]}</b></span>
+    </div>'''
+
+# 今日信号
+sig_dir = signal.get('direction', 'HOLD')
+sig_color = 'var(--t3)' if sig_dir == 'BUY' else ('var(--t4)' if sig_dir == 'SELL' else 'var(--t5)')
+
 sim_panel = f'''
 <div id="simulator-panel" style="display:none">
   <div class="card" style="margin-top:16px;max-width:100%;overflow:hidden">
     <h3 style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      📊 交易模拟器 (Walk-Forward回测 2014-2026)
+      📊 实盘交易模拟 <span style="font-size:11px;color:var(--t1);font-weight:400">(起始{perf.get("start_date","?")}，每日自动更新)</span>
       <span onclick="toggleSimulator()" style="cursor:pointer;color:var(--t1);font-size:20px">&times;</span>
     </h3>
-    <p style="font-size:12px;color:var(--t5);margin-bottom:12px;display:flex;flex-wrap:wrap;gap:16px">
-      <span>总收益 <b style="color:var(--t3)">+{perf['total_return_pct']:.1f}%</b></span>
-      <span>年化 <b style="color:var(--t2)">+{perf['cagr_pct']:.1f}%</b></span>
-      <span>夏普 <b style="color:var(--text)">{perf['sharpe']:.2f}</b></span>
-      <span>最大回撤 <b style="color:var(--t4)">{perf['max_drawdown_pct']:.1f}%</b></span>
-      <span>胜率 <b style="color:var(--t5)">{perf['win_rate_pct']:.0f}%</b></span>
-      <span>盈亏比 <b>{perf['profit_factor']:.1f}</b></span>
-      <span>{perf['n_trades']}笔</span>
+    
+    {pos_html}
+    
+    <div style="display:flex;gap:40px;align-items:center;margin:12px 0;flex-wrap:wrap">
+      <div><span style="color:var(--t1);font-size:12px">今日信号</span><br><b style="font-size:22px;color:{sig_color}">{sig_dir}</b></div>
+      <div><span style="color:var(--t1);font-size:12px">P(涨)</span><br><b style="font-size:16px">{signal.get('p_up',0):.4f}</b></div>
+      <div><span style="color:var(--t1);font-size:12px">置信度</span><br><b style="font-size:16px">{signal.get('confidence',0):.4f}</b></div>
+      <div><span style="color:var(--t1);font-size:12px">当前价</span><br><b style="font-size:16px">{signal.get('price',0):.2f}</b></div>
+    </div>
+    
+    <p style="font-size:12px;color:var(--t5);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:16px">
+      <span>资金: <b>{perf.get('initial_capital',100000):,.0f}</b> → <b style="color:{'var(--t3)' if perf.get('total_return_pct',0)>=0 else 'var(--t4)'}">{perf.get('capital',100000):,.0f}</b></span>
+      <span>总收益: <b style="color:{'var(--t3)' if perf.get('total_return_pct',0)>=0 else 'var(--t4)'}">{perf.get('total_return_pct',0):+.1f}%</b></span>
+      <span>胜率: <b>{perf.get('win_rate_pct',0):.0f}%</b></span>
+      <span>最大回撤: <b style="color:var(--t4)">{perf.get('max_drawdown_pct',0):.1f}%</b></span>
+      <span>交易: <b>{perf.get('n_trades',0)}笔</b></span>
+      <span>跟踪: <b>{perf.get('n_days',0)}天</b></span>
     </p>
-    <div style="height:300px;margin-bottom:12px"><canvas id="equity-canvas"></canvas></div>
-    <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
+    
+    <div style="height:250px;margin-bottom:12px"><canvas id="equity-canvas"></canvas></div>
+    
+    <div style="overflow-x:auto;max-height:240px;overflow-y:auto">
       <table class="trade-table" style="font-size:12px;min-width:500px">
         <thead><tr>
-          <th>入场</th><th>出场</th><th>方向</th><th>盈亏%</th><th>盈亏额</th><th>原因</th><th>信号P</th>
+          <th>入场</th><th>出场</th><th>方向</th><th>盈亏%</th><th>盈亏额</th><th>原因</th>
         </tr></thead>
         <tbody id="trade-body"></tbody>
       </table>
     </div>
+    
     <p style="font-size:11px;color:var(--t1);margin-top:10px;line-height:1.6">
-      <b>交易规则</b>: 模型P(涨)>0.60做多 / P<0.40做空 | Kelly仓位公式(上限25%) | 止损2.5×ATR / 止盈3.0×ATR | 信号反转时平仓<br>
-      <b>验证方式</b>: Walk-Forward扩展窗口(1500训/200测), 无前视偏差 | 校准模型(XGBoost+Platt) | 覆盖{perf['n_days']}个交易日<br>
-      <span style="color:var(--t4)">⚠ 模拟回测仅用于验证模型信号质量, 不构成交易建议。实际交易需考虑滑点、手续费、流动性等。</span>
+      <b>规则</b>: P(涨)>0.60→做多 / P<0.40→做空 | Kelly仓位(上限25%) | 止损2.5×ATR / 止盈3.0×ATR | 信号反转平仓<br>
+      <b>数据</b>: 校准模型(XGBoost+Platt) | 每日自动推进 | 无前视偏差 | 更新于 {live_data.get('last_update','?')}<br>
+      <span style="color:var(--t4)">⚠ 模拟仅用于测试模型信号质量, 不构成交易建议。</span>
     </p>
   </div>
 </div>
