@@ -1,0 +1,610 @@
+{
+  "capital": 100000.0,
+  "initial_capital": 100000.0,
+  "position": null,
+  "trades": [],
+  "equity_log": [
+    {
+      "date": "2026-04-22",
+      "price": 1051.4,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.451,
+      "atr": 11.99
+    },
+    {
+      "date": "2026-04-23",
+      "price": 1040.06,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4583,
+      "atr": 10.85
+    },
+    {
+      "date": "2026-04-24",
+      "price": 1032.12,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4676,
+      "atr": 10.34
+    },
+    {
+      "date": "2026-04-27",
+      "price": 1039.42,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.463,
+      "atr": 10.57
+    },
+    {
+      "date": "2026-04-28",
+      "price": 1022.1,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.473,
+      "atr": 10.63
+    },
+    {
+      "date": "2026-04-29",
+      "price": 1011.88,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.471,
+      "atr": 10.88
+    },
+    {
+      "date": "2026-04-30",
+      "price": 1016.12,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4627,
+      "atr": 9.44
+    },
+    {
+      "date": "2026-05-06",
+      "price": 1028.48,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4607,
+      "atr": 8.59
+    },
+    {
+      "date": "2026-05-07",
+      "price": 1040.98,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4647,
+      "atr": 8.75
+    },
+    {
+      "date": "2026-05-08",
+      "price": 1038.22,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4679,
+      "atr": 8.82
+    },
+    {
+      "date": "2026-05-11",
+      "price": 1026.8,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4736,
+      "atr": 8.01
+    },
+    {
+      "date": "2026-05-12",
+      "price": 1030.12,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4664,
+      "atr": 7.14
+    },
+    {
+      "date": "2026-05-13",
+      "price": 1030.56,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.465,
+      "atr": 6.81
+    },
+    {
+      "date": "2026-05-14",
+      "price": 1029.6,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4702,
+      "atr": 6.61
+    },
+    {
+      "date": "2026-05-15",
+      "price": 1004.38,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4782,
+      "atr": 7.4
+    },
+    {
+      "date": "2026-05-18",
+      "price": 999.8,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4737,
+      "atr": 7.36
+    },
+    {
+      "date": "2026-05-19",
+      "price": 1002.18,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4656,
+      "atr": 7.31
+    },
+    {
+      "date": "2026-05-20",
+      "price": 986.64,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4813,
+      "atr": 7.72
+    },
+    {
+      "date": "2026-05-21",
+      "price": 995.38,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4583,
+      "atr": 8.11
+    },
+    {
+      "date": "2026-05-22",
+      "price": 995.76,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4594,
+      "atr": 7.96
+    },
+    {
+      "date": "2026-05-25",
+      "price": 1001.4,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4592,
+      "atr": 8.23
+    },
+    {
+      "date": "2026-05-26",
+      "price": 995.0,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4666,
+      "atr": 7.98
+    },
+    {
+      "date": "2026-05-27",
+      "price": 983.56,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.471,
+      "atr": 8.16
+    },
+    {
+      "date": "2026-05-28",
+      "price": 961.18,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4763,
+      "atr": 8.91
+    },
+    {
+      "date": "2026-05-29",
+      "price": 989.4,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4597,
+      "atr": 9.46
+    },
+    {
+      "date": "2026-06-01",
+      "price": 983.58,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4691,
+      "atr": 9.24
+    },
+    {
+      "date": "2026-06-02",
+      "price": 990.6,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4589,
+      "atr": 9.38
+    },
+    {
+      "date": "2026-06-03",
+      "price": 977.08,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4698,
+      "atr": 9.43
+    },
+    {
+      "date": "2026-06-04",
+      "price": 977.94,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4607,
+      "atr": 8.85
+    },
+    {
+      "date": "2026-06-05",
+      "price": 974.02,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4656,
+      "atr": 8.91
+    },
+    {
+      "date": "2026-06-08",
+      "price": 942.2,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4924,
+      "atr": 9.93
+    },
+    {
+      "date": "2026-06-09",
+      "price": 947.04,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.466,
+      "atr": 10.01
+    },
+    {
+      "date": "2026-06-10",
+      "price": 919.32,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.483,
+      "atr": 11.37
+    },
+    {
+      "date": "2026-06-11",
+      "price": 895.0,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4791,
+      "atr": 12.54
+    },
+    {
+      "date": "2026-06-12",
+      "price": 911.62,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4604,
+      "atr": 12.11
+    },
+    {
+      "date": "2026-06-15",
+      "price": 938.94,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.462,
+      "atr": 13.24
+    },
+    {
+      "date": "2026-06-16",
+      "price": 941.72,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4643,
+      "atr": 13.26
+    },
+    {
+      "date": "2026-06-17",
+      "price": 942.94,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4693,
+      "atr": 12.55
+    },
+    {
+      "date": "2026-06-18",
+      "price": 937.96,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4741,
+      "atr": 12.36
+    },
+    {
+      "date": "2026-06-22",
+      "price": 916.92,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5183,
+      "atr": 13.39
+    },
+    {
+      "date": "2026-06-23",
+      "price": 897.9,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.523,
+      "atr": 14.06
+    },
+    {
+      "date": "2026-06-24",
+      "price": 896.04,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4964,
+      "atr": 13.84
+    },
+    {
+      "date": "2026-06-25",
+      "price": 872.0,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5434,
+      "atr": 14.47
+    },
+    {
+      "date": "2026-06-26",
+      "price": 883.3,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4883,
+      "atr": 13.91
+    },
+    {
+      "date": "2026-06-29",
+      "price": 888.72,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4899,
+      "atr": 12.77
+    },
+    {
+      "date": "2026-06-30",
+      "price": 881.24,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5324,
+      "atr": 12.86
+    },
+    {
+      "date": "2026-07-01",
+      "price": 869.82,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5331,
+      "atr": 13.07
+    },
+    {
+      "date": "2026-07-02",
+      "price": 890.66,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4938,
+      "atr": 13.44
+    },
+    {
+      "date": "2026-07-03",
+      "price": 911.4,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4763,
+      "atr": 14.43
+    },
+    {
+      "date": "2026-07-06",
+      "price": 907.82,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4842,
+      "atr": 14.42
+    },
+    {
+      "date": "2026-07-07",
+      "price": 903.76,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4853,
+      "atr": 13.03
+    },
+    {
+      "date": "2026-07-08",
+      "price": 902.76,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4829,
+      "atr": 12.84
+    },
+    {
+      "date": "2026-07-09",
+      "price": 898.86,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4867,
+      "atr": 11.65
+    },
+    {
+      "date": "2026-07-10",
+      "price": 897.94,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.4837,
+      "atr": 10.48
+    },
+    {
+      "date": "2026-07-13",
+      "price": 885.94,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5264,
+      "atr": 10.25
+    },
+    {
+      "date": "2026-07-14",
+      "price": 880.26,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.529,
+      "atr": 9.16
+    },
+    {
+      "date": "2026-07-15",
+      "price": 880.1,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5095,
+      "atr": 9.03
+    },
+    {
+      "date": "2026-07-16",
+      "price": 879.18,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5134,
+      "atr": 9.02
+    },
+    {
+      "date": "2026-07-17",
+      "price": 876.24,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5136,
+      "atr": 8.92
+    },
+    {
+      "date": "2026-07-20",
+      "price": 876.64,
+      "equity": 100000.0,
+      "capital": 100000.0,
+      "in_position": false,
+      "position_dir": null,
+      "p_up": 0.5085,
+      "atr": 7.88
+    }
+  ],
+  "last_processed_date": "2026-07-20",
+  "start_date": "2026-04-22"
+}
