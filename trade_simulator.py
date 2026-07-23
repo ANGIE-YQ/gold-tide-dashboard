@@ -1,680 +1,454 @@
 #!/usr/bin/env python3
 """
-黄金潮汐模型 — 交易模拟器
-支持：Walk-Forward回测 + 实时模拟 + 绩效分析
+黄金潮汐模型 — 交易模拟器 v2（实盘跟踪版）
+每天自动推进：读取最新模型信号 → 检查持仓 → 开平仓 → 更新绩效 → 持久化状态
 """
 
 import numpy as np
 import pandas as pd
-import pickle, json, os, sys, time
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
+import pickle, json, os, sys
+from datetime import datetime
+from typing import Dict, Optional, List
+from dataclasses import dataclass, field, asdict
+
 
 # ======================== 数据模型 ========================
 
 @dataclass
-class Trade:
-    """单笔交易记录"""
-    entry_date: str
-    exit_date: str
-    direction: str          # 'long' / 'short'
-    entry_price: float
-    exit_price: float
-    quantity: float
-    entry_capital: float    # 入场时总资金
-    pnl: float              # 盈亏金额
-    pnl_pct: float          # 盈亏百分比(vs 总资金)
-    exit_reason: str        # 'stop_loss' / 'take_profit' / 'signal_flip' / 'close_all'
-    signal_p: float         # 入场时的模型P值
-    confidence: float       # 置信度
-
-@dataclass
 class Position:
-    """当前持仓"""
-    direction: str
+    direction: str   # 'long' / 'short'
     entry_price: float
     quantity: float
     entry_date: str
     entry_signal_p: float
     stop_loss: float
     take_profit: float
+    entry_capital: float  # 开仓时总资金
 
-@dataclass 
+@dataclass
+class ClosedTrade:
+    entry_date: str
+    exit_date: str
+    direction: str
+    entry_price: float
+    exit_price: float
+    pnl: float
+    pnl_pct: float      # vs 开仓时总资金
+    exit_reason: str
+    signal_p: float
+
+@dataclass
 class SimState:
-    """模拟器状态"""
     capital: float
     initial_capital: float
-    position: Optional[Position] = None
-    trades: List[Trade] = field(default_factory=list)
-    equity_curve: List[Dict] = field(default_factory=list)
-    daily_returns: List[float] = field(default_factory=list)
+    position: Optional[dict] = None       # Position as dict for JSON
+    trades: list = field(default_factory=list)    # list of ClosedTrade dicts
+    equity_log: list = field(default_factory=list)  # daily snapshots
+    last_processed_date: str = ''
+    start_date: str = ''
 
-# ======================== 核心引擎 ========================
 
-class TideTrader:
+# ======================== 核心 — 实盘模拟引擎 ========================
+
+class LiveTrader:
     """
-    潮汐交易模拟器
+    实盘模拟器：状态持久化，每次运行自动推进到最新数据日
     
-    策略规则：
-    - 信号: 校准模型 P(涨) > 0.60 → long, P(涨) < 0.40 → short
+    规则：
+    - 信号 P(涨) > 0.60 → 做多, P < 0.40 → 做空
     - 仓位: Kelly公式 × 置信度, 上限25%
-    - 止损: 2.5 × ATR
-    - 止盈: 3.0 × ATR
-    - 每日检查一次信号和止损止盈
+    - 止损: 2.5×ATR, 止盈: 3.0×ATR
+    - 信号反转时平仓
     """
     
     def __init__(self, initial_capital=100000, max_position=0.25,
-                 stop_atr_mult=2.5, tp_atr_mult=3.0,
-                 buy_threshold=0.60, sell_threshold=0.40):
+                 stop_atr=2.5, tp_atr=3.0, buy_thr=0.60, sell_thr=0.40,
+                 state_path='sim_live_state.json',
+                 feat_path='gold_features_enhanced.csv',
+                 model_path='gold_tide_calibrated_model.pkl'):
+        
         self.initial_capital = initial_capital
         self.max_position = max_position
-        self.stop_atr_mult = stop_atr_mult
-        self.tp_atr_mult = tp_atr_mult
-        self.buy_threshold = buy_threshold
-        self.sell_threshold = sell_threshold
-        self.state = SimState(capital=initial_capital, initial_capital=initial_capital)
+        self.stop_atr = stop_atr
+        self.tp_atr = tp_atr
+        self.buy_thr = buy_thr
+        self.sell_thr = sell_thr
+        self.state_path = state_path
+        self.feat_path = feat_path
+        self.model_path = model_path
         
-    def kelly_position(self, p_win: float, win_loss_ratio=1.5) -> float:
-        """Kelly公式计算仓位比例"""
+        # 加载或初始化状态
+        self.state = self._load_state()
+        
+        # 加载模型
+        with open(model_path, 'rb') as f:
+            pkg = pickle.load(f)
+        self.calibrated = pkg['model']
+        self.feature_cols = [c for c in pkg['features'] 
+                            if c not in pkg.get('dead', [])]
+    
+    def _load_state(self) -> SimState:
+        if os.path.exists(self.state_path):
+            with open(self.state_path, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+            return SimState(
+                capital=d.get('capital', self.initial_capital),
+                initial_capital=d.get('initial_capital', self.initial_capital),
+                position=d.get('position'),
+                trades=d.get('trades', []),
+                equity_log=d.get('equity_log', []),
+                last_processed_date=d.get('last_processed_date', ''),
+                start_date=d.get('start_date', ''),
+            )
+        return SimState(capital=self.initial_capital, initial_capital=self.initial_capital)
+    
+    def _save_state(self):
+        d = asdict(self.state)
+        with open(self.state_path, 'w', encoding='utf-8') as f:
+            json.dump(d, f, ensure_ascii=False, indent=2)
+    
+    def _kelly_pct(self, p_win: float) -> float:
+        """半凯利仓位"""
+        win_loss_ratio = 1.5
         p_lose = 1 - p_win
-        kelly = (p_win * win_loss_ratio - p_lose) / win_loss_ratio
-        return max(0, min(kelly * 0.5, self.max_position))  # 半凯利,上限25%
+        kelly = max(0, (p_win * win_loss_ratio - p_lose) / win_loss_ratio)
+        return min(kelly * 0.5, self.max_position)
     
-    def check_exit(self, price: float, atr: float, signal_direction: str) -> Optional[str]:
-        """检查是否需要平仓"""
-        pos = self.state.position
-        if pos is None:
-            return None
-        
-        if pos.direction == 'long':
-            if price <= pos.stop_loss:
-                return 'stop_loss'
-            if price >= pos.take_profit:
-                return 'take_profit'
-            if signal_direction == 'short':  # 信号反转
-                return 'signal_flip'
-        else:  # short
-            if price >= pos.stop_loss:
-                return 'stop_loss'
-            if price <= pos.take_profit:
-                return 'take_profit'
-            if signal_direction == 'long':
-                return 'signal_flip'
-        return None
-    
-    def close_position(self, price: float, date: str, reason: str, capital: float):
-        """平仓并记录交易"""
-        pos = self.state.position
-        if pos is None:
-            return
-        
-        if pos.direction == 'long':
-            pnl = (price - pos.entry_price) * pos.quantity
-        else:
-            pnl = (pos.entry_price - price) * pos.quantity
-        
-        pnl_pct = pnl / capital
-        
-        trade = Trade(
-            entry_date=pos.entry_date,
-            exit_date=date,
-            direction=pos.direction,
-            entry_price=pos.entry_price,
-            exit_price=price,
-            quantity=pos.quantity,
-            entry_capital=capital,
-            pnl=pnl,
-            pnl_pct=pnl_pct,
-            exit_reason=reason,
-            signal_p=pos.entry_signal_p,
-            confidence=abs(pos.entry_signal_p - 0.5)
+    def _compute_atr(self, close, high=None, low=None, period=20):
+        """计算ATR"""
+        if high is None: high = close
+        if low is None: low = close
+        tr = np.maximum(
+            high[1:] - low[1:],
+            np.maximum(abs(high[1:] - close[:-1]), abs(low[1:] - close[:-1]))
         )
-        
-        self.state.trades.append(trade)
-        self.state.position = None
-        
-    def open_position(self, direction: str, price: float, atr: float, 
-                      signal_p: float, date: str, capital: float):
-        """开仓"""
-        if self.state.position is not None:
-            return  # 已有仓位
-        
-        confidence = abs(signal_p - 0.5)
-        kelly_pct = self.kelly_position(signal_p if direction == 'long' else (1 - signal_p))
-        position_pct = kelly_pct * (confidence / 0.15)  # 置信度调整
-        position_pct = min(position_pct, self.max_position)
-        
-        if position_pct < 0.02:  # 最低2%
-            return
-        
-        quantity = capital * position_pct / price
-        
-        if direction == 'long':
-            sl = price - self.stop_atr_mult * atr
-            tp = price + self.tp_atr_mult * atr
-        else:
-            sl = price + self.stop_atr_mult * atr
-            tp = price - self.tp_atr_mult * atr
-        
-        self.state.position = Position(
-            direction=direction,
-            entry_price=price,
-            quantity=quantity,
-            entry_date=date,
-            entry_signal_p=signal_p,
-            stop_loss=sl,
-            take_profit=tp
-        )
+        tr = np.concatenate([[tr[0]], tr])
+        return pd.Series(tr).rolling(period, min_periods=5).mean().values
     
-    def step(self, price: float, atr: float, signal_p: float, date: str) -> Dict:
+    def run_daily(self) -> Dict:
         """
-        每日执行一步
-        返回: 当天的状态快照
+        每日执行：加载最新特征 → 获取当天信号 → 检查/执行交易 → 保存状态
+        返回今日快照（供看板展示）
         """
-        capital = self.state.capital
+        # 加载特征数据
+        feat = pd.read_csv(self.feat_path, parse_dates=['Date'])
+        feat['Date'] = feat['Date'].dt.date
         
-        # 确定信号方向
-        if signal_p > self.buy_threshold:
-            signal_dir = 'long'
-        elif signal_p < self.sell_threshold:
-            signal_dir = 'short'
+        # 过滤有效特征列
+        avail_cols = [c for c in self.feature_cols if c in feat.columns]
+        X_all = feat[avail_cols].values
+        
+        # 获取模型预测概率
+        probs = self.calibrated.predict_proba(X_all)[:, 1]
+        
+        # 价格、日期、ATR
+        close = feat['Close'].values.astype(float)
+        dates = feat['Date'].values
+        high = feat['High'].values.astype(float) if 'High' in feat.columns else close
+        low = feat['Low'].values.astype(float) if 'Low' in feat.columns else close
+        atr = self._compute_atr(close, high, low)
+        
+        # 确定需要处理的日期范围
+        if not self.state.last_processed_date:
+            # 首次运行：从最近60天开始（模拟"从今天开始跟踪"）
+            # 用户可通过 --reset --start-back N 指定回溯天数
+            back_days = getattr(self, '_start_back_days', 60)
+            start_idx = max(0, len(feat) - back_days)
+            self.state.start_date = str(dates[start_idx])
+            current_idx = start_idx
         else:
-            signal_dir = 'neutral'
+            # 增量运行：找到上次处理的日期之后的第一天
+            last_d = pd.Timestamp(self.state.last_processed_date).date()
+            current_idx = None
+            for i in range(len(dates)):
+                if pd.Timestamp(dates[i]).date() > last_d:
+                    current_idx = i
+                    break
+            if current_idx is None:
+                return self._today_snapshot(close[-1], atr[-1], probs[-1], str(dates[-1]))
         
-        # 1. 检查是否需要平仓
-        exit_reason = self.check_exit(price, atr, signal_dir)
-        if exit_reason:
-            self.close_position(price, date, exit_reason, capital)
-            # 平仓后更新资金
-            if self.state.position is None and self.state.trades:
-                last_trade = self.state.trades[-1]
-                self.state.capital += last_trade.pnl
-                capital = self.state.capital
-        
-        # 2. 检查是否需要开仓（只在无仓位时）
-        if self.state.position is None:
-            if signal_dir in ('long', 'short'):
-                self.open_position(signal_dir, price, atr, signal_p, date, capital)
-        
-        # 3. 记录权益曲线
-        if self.state.position:
-            if self.state.position.direction == 'long':
-                unrealized = (price - self.state.position.entry_price) * self.state.position.quantity
+        # 逐日推进
+        days_processed = 0
+        for i in range(current_idx, len(dates)):
+            price = float(close[i])
+            cur_atr = float(max(atr[i], 1.0))
+            p_up = float(probs[i])
+            date_str = str(dates[i])
+            
+            # 确定信号方向
+            if p_up > self.buy_thr:
+                signal_dir = 'long'
+            elif p_up < self.sell_thr:
+                signal_dir = 'short'
             else:
-                unrealized = (self.state.position.entry_price - price) * self.state.position.quantity
-            equity = capital + unrealized
+                signal_dir = 'neutral'
+            
+            # 1. 检查是否需要平仓
+            pos = self.state.position
+            if pos:
+                exit_reason = None
+                if pos['direction'] == 'long':
+                    if price <= pos['stop_loss']:
+                        exit_reason = 'stop_loss'
+                    elif price >= pos['take_profit']:
+                        exit_reason = 'take_profit'
+                    elif signal_dir == 'short':
+                        exit_reason = 'signal_flip'
+                else:  # short
+                    if price >= pos['stop_loss']:
+                        exit_reason = 'stop_loss'
+                    elif price <= pos['take_profit']:
+                        exit_reason = 'take_profit'
+                    elif signal_dir == 'long':
+                        exit_reason = 'signal_flip'
+                
+                if exit_reason:
+                    # 平仓
+                    if pos['direction'] == 'long':
+                        pnl = (price - pos['entry_price']) * pos['quantity']
+                    else:
+                        pnl = (pos['entry_price'] - price) * pos['quantity']
+                    
+                    trade = {
+                        'entry_date': pos['entry_date'],
+                        'exit_date': date_str,
+                        'direction': pos['direction'],
+                        'entry_price': round(pos['entry_price'], 2),
+                        'exit_price': round(price, 2),
+                        'pnl': round(pnl, 2),
+                        'pnl_pct': round(pnl / pos['entry_capital'] * 100, 2),
+                        'exit_reason': exit_reason,
+                        'signal_p': round(pos['entry_signal_p'], 3),
+                    }
+                    self.state.trades.append(trade)
+                    self.state.capital += pnl
+                    self.state.position = None
+            
+            # 2. 检查是否需要开仓
+            if self.state.position is None and signal_dir in ('long', 'short'):
+                confidence = abs(p_up - 0.5)
+                p_win = p_up if signal_dir == 'long' else (1 - p_up)
+                pos_pct = self._kelly_pct(p_win) * min(confidence / 0.15, 1.5)
+                pos_pct = min(pos_pct, self.max_position)
+                
+                if pos_pct >= 0.02:
+                    quantity = self.state.capital * pos_pct / price
+                    
+                    if signal_dir == 'long':
+                        sl = price - self.stop_atr * cur_atr
+                        tp = price + self.tp_atr * cur_atr
+                    else:
+                        sl = price + self.stop_atr * cur_atr
+                        tp = price - self.tp_atr * cur_atr
+                    
+                    self.state.position = {
+                        'direction': signal_dir,
+                        'entry_price': round(price, 2),
+                        'quantity': quantity,
+                        'entry_date': date_str,
+                        'entry_signal_p': round(p_up, 4),
+                        'stop_loss': round(sl, 2),
+                        'take_profit': round(tp, 2),
+                        'entry_capital': self.state.capital,
+                    }
+            
+            # 3. 记录当日权益
+            if self.state.position:
+                p = self.state.position
+                if p['direction'] == 'long':
+                    unrealized = (price - p['entry_price']) * p['quantity']
+                else:
+                    unrealized = (p['entry_price'] - price) * p['quantity']
+                equity = self.state.capital + unrealized
+            else:
+                equity = self.state.capital
+            
+            self.state.equity_log.append({
+                'date': date_str,
+                'price': round(price, 2),
+                'equity': round(equity, 2),
+                'capital': round(self.state.capital, 2),
+                'in_position': self.state.position is not None,
+                'position_dir': self.state.position['direction'] if self.state.position else None,
+                'p_up': round(p_up, 4),
+                'atr': round(cur_atr, 2),
+            })
+            
+            # 精简日志（保留最近500天，其余每5天采样）
+            if len(self.state.equity_log) > 500:
+                recent = self.state.equity_log[-500:]
+                old = self.state.equity_log[:-500]
+                sampled_old = old[::max(1, len(old) // 200)]
+                self.state.equity_log = sampled_old + recent
+            
+            days_processed += 1
+            self.state.last_processed_date = date_str
+        
+        # 保存状态
+        self._save_state()
+        
+        # 返回今日快照
+        return self._today_snapshot(
+            float(close[-1]), float(atr[-1]), float(probs[-1]), str(dates[-1]),
+            days_processed=days_processed
+        )
+    
+    def _today_snapshot(self, price, atr_val, p_up, date_str, days_processed=0) -> Dict:
+        """生成今日快照（供看板JSON）"""
+        # 计算绩效
+        total_return = (self.state.capital / self.state.initial_capital - 1) * 100
+        
+        # 胜率等
+        trades = self.state.trades
+        if trades:
+            win_count = sum(1 for t in trades if t['pnl'] > 0)
+            win_rate = win_count / len(trades) * 100
+            total_wins = sum(t['pnl'] for t in trades if t['pnl'] > 0)
+            total_losses = abs(sum(t['pnl'] for t in trades if t['pnl'] <= 0))
+            profit_factor = total_wins / total_losses if total_losses > 0 else 999
         else:
-            equity = self.state.capital
+            win_rate = profit_factor = 0
         
-        self.state.equity_curve.append({
-            'date': date,
-            'price': price,
-            'equity': equity,
-            'capital': self.state.capital,
-            'in_position': self.state.position is not None,
-            'position_dir': self.state.position.direction if self.state.position else None,
-            'signal_p': signal_p,
-            'atr': atr
-        })
-        
-        return self.state.equity_curve[-1]
-    
-    def force_close_all(self, price: float, date: str):
-        """强制平仓（回测结束或止损）"""
-        if self.state.position:
-            capital = self.state.capital
-            self.close_position(price, date, 'close_all', capital)
-            if self.state.position is None:
-                self.state.capital += self.state.trades[-1].pnl
-    
-    def get_performance(self) -> Dict:
-        """计算绩效指标"""
-        if not self.state.equity_curve:
-            return {'error': 'no data'}
-        
-        equity = pd.DataFrame(self.state.equity_curve)
-        n_days = len(equity)
-        
-        # 总收益
-        total_return = (self.state.capital / self.initial_capital - 1) * 100
-        
-        # 年化
-        years = n_days / 252
-        cagr = (self.state.capital / self.initial_capital) ** (1 / max(years, 0.01)) - 1
+        # 最大回撤
+        if self.state.equity_log:
+            eq_vals = [e['equity'] for e in self.state.equity_log]
+            peak = np.maximum.accumulate(eq_vals)
+            dd = min((np.array(eq_vals) - peak) / peak * 100)
+        else:
+            dd = 0
         
         # 日收益率
-        eq_values = equity['equity'].values
-        daily_rets = np.diff(eq_values) / eq_values[:-1]
-        daily_rets = daily_rets[~np.isnan(daily_rets)]
-        
-        # 夏普
-        if len(daily_rets) > 0 and daily_rets.std() > 0:
-            sharpe = np.sqrt(252) * daily_rets.mean() / daily_rets.std()
+        if len(self.state.equity_log) >= 30:
+            eq_arr = np.array([e['equity'] for e in self.state.equity_log])
+            daily_rets = np.diff(eq_arr) / eq_arr[:-1]
+            daily_rets = daily_rets[np.isfinite(daily_rets)]
+            if len(daily_rets) > 0 and daily_rets.std() > 0:
+                sharpe = np.sqrt(252) * daily_rets.mean() / daily_rets.std()
+            else:
+                sharpe = 0
         else:
             sharpe = 0
         
-        # 最大回撤
-        peak = np.maximum.accumulate(eq_values)
-        drawdowns = (eq_values - peak) / peak * 100
-        max_dd = drawdowns.min()
-        
-        # 交易统计
-        trades = self.state.trades
-        if trades:
-            win_trades = [t for t in trades if t.pnl > 0]
-            loss_trades = [t for t in trades if t.pnl <= 0]
-            win_rate = len(win_trades) / len(trades) * 100
-            
-            avg_win = np.mean([t.pnl_pct for t in win_trades]) * 100 if win_trades else 0
-            avg_loss = np.mean([t.pnl_pct for t in loss_trades]) * 100 if loss_trades else 0
-            
-            total_wins = sum(t.pnl for t in win_trades)
-            total_losses = abs(sum(t.pnl for t in loss_trades))
-            profit_factor = total_wins / total_losses if total_losses > 0 else float('inf')
-            
-            # 按退出原因分组
-            by_reason = {}
-            for t in trades:
-                r = t.exit_reason
-                by_reason.setdefault(r, []).append(t)
-            reason_stats = {r: {
-                'count': len(ts),
-                'win_rate': sum(1 for t in ts if t.pnl > 0) / len(ts) * 100,
-                'avg_pnl_pct': np.mean([t.pnl_pct for t in ts]) * 100
-            } for r, ts in by_reason.items()}
+        # 当前持仓
+        if self.state.position:
+            p = self.state.position
+            if p['direction'] == 'long':
+                unrealized = (price - p['entry_price']) * p['quantity']
+                unrealized_pct = (price / p['entry_price'] - 1) * 100
+            else:
+                unrealized = (p['entry_price'] - price) * p['quantity']
+                unrealized_pct = (p['entry_price'] / price - 1) * 100
+            position_info = {
+                'direction': p['direction'],
+                'entry_price': p['entry_price'],
+                'entry_date': p['entry_date'],
+                'stop_loss': p['stop_loss'],
+                'take_profit': p['take_profit'],
+                'unrealized_pnl': round(unrealized, 2),
+                'unrealized_pnl_pct': round(unrealized_pct, 2),
+            }
         else:
-            win_rate = avg_win = avg_loss = profit_factor = 0
-            reason_stats = {}
+            position_info = None
         
-        # 持仓统计
-        in_pos = equity['in_position'].sum()
-        pos_pct = in_pos / n_days * 100
+        # 信号建议
+        signal = {
+            'date': date_str,
+            'price': round(price, 2),
+            'p_up': round(p_up, 4),
+            'direction': 'BUY' if p_up > self.buy_thr else ('SELL' if p_up < self.sell_thr else 'HOLD'),
+            'confidence': round(abs(p_up - 0.5), 4),
+            'atr': round(atr_val, 2),
+        }
+        
+        if position_info is None and signal['direction'] in ('BUY', 'SELL'):
+            confidence = abs(p_up - 0.5)
+            p_win = p_up if signal['direction'] == 'BUY' else (1 - p_up)
+            pos_pct = min(self._kelly_pct(p_win) * min(confidence / 0.15, 1.5), self.max_position)
+            is_long = signal['direction'] == 'BUY'
+            signal['suggestion'] = {
+                'action': f'开{"多" if is_long else "空"}仓',
+                'position_pct': round(pos_pct * 100, 1),
+                'stop_loss': round(price - self.stop_atr * atr_val if is_long else price + self.stop_atr * atr_val, 2),
+                'take_profit': round(price + self.tp_atr * atr_val if is_long else price - self.tp_atr * atr_val, 2),
+            }
+        
+        # 精简的交易记录（最近20笔）
+        recent_trades = self.state.trades[-20:]
+        
+        # 权益曲线（采样）
+        eq_log = self.state.equity_log
+        if len(eq_log) > 300:
+            step = len(eq_log) // 300
+            eq_log = eq_log[::step] + [eq_log[-1]]
         
         return {
-            'initial_capital': self.initial_capital,
-            'final_capital': round(self.state.capital, 2),
-            'total_return_pct': round(total_return, 2),
-            'cagr_pct': round(cagr * 100, 2),
-            'sharpe': round(sharpe, 2),
-            'max_drawdown_pct': round(max_dd, 2),
-            'n_trades': len(trades),
-            'win_rate_pct': round(win_rate, 1),
-            'avg_win_pct': round(avg_win, 2),
-            'avg_loss_pct': round(avg_loss, 2),
-            'profit_factor': round(profit_factor, 2) if profit_factor != float('inf') else 999,
-            'position_ratio_pct': round(pos_pct, 1),
-            'reason_stats': reason_stats,
-            'n_days': n_days,
+            'signal': signal,
+            'position': position_info,
+            'perf': {
+                'initial_capital': self.state.initial_capital,
+                'capital': round(self.state.capital, 2),
+                'total_return_pct': round(total_return, 1),
+                'win_rate_pct': round(win_rate, 1),
+                'profit_factor': round(profit_factor, 2) if profit_factor < 999 else 999,
+                'max_drawdown_pct': round(dd, 2),
+                'sharpe': round(sharpe, 2),
+                'n_trades': len(trades),
+                'n_days': len(self.state.equity_log),
+                'start_date': self.state.start_date,
+            },
+            'recent_trades': recent_trades,
+            'equity_log': eq_log,
+            'days_processed': days_processed,
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
-
-
-# ======================== 回测模式 ========================
-
-def run_backtest(feat_path='gold_features_enhanced.csv',
-                 model_path='gold_tide_calibrated_model.pkl',
-                 initial_capital=100000, fwd=10) -> Dict:
-    """
-    Walk-Forward 回测
-    用扩展窗口训练 → 预测下一段 → 交易模拟
-    """
-    print(f'[回测] 加载数据...')
-    
-    # 加载特征
-    feat = pd.read_csv(feat_path, parse_dates=['Date'])
-    
-    # 加载校准模型获取特征列表
-    with open(model_path, 'rb') as f:
-        model_pkg = pickle.load(f)
-    
-    feature_cols = model_pkg['features']
-    dead_cols = model_pkg.get('dead', [])
-    feat_cols = [c for c in feature_cols if c in feat.columns and c not in dead_cols]
-    
-    # 标签
-    label_col = f'fwd{fwd}'
-    y = (feat[label_col] > 0).astype(int).values
-    valid_mask = ~feat[label_col].isna().values
-    
-    # ATR计算（用原始Close）
-    close = feat['Close'].values.astype(float)
-    dates = feat['Date'].dt.strftime('%Y-%m-%d').values
-    
-    # 简易ATR
-    high = feat.get('High', close).values.astype(float) if 'High' in feat.columns else close
-    low = feat.get('Low', close).values.astype(float) if 'Low' in feat.columns else close
-    tr = np.maximum(high[1:] - low[1:], 
-                    np.maximum(abs(high[1:] - close[:-1]), abs(low[1:] - close[:-1])))
-    tr = np.concatenate([[tr[0]], tr])
-    atr = pd.Series(tr).rolling(20, min_periods=5).mean().values
-    
-    # 初始化
-    trader = TideTrader(initial_capital=initial_capital)
-    
-    # Walk-Forward 参数
-    train_window = 1500  # 初始训练窗口
-    step_size = 200       # 每步新增数据量
-    
-    print(f'[回测] Walk-Forward: train={train_window}, step={step_size}')
-    print(f'[回测] 特征数: {len(feat_cols)}, 有效样本: {valid_mask.sum()}')
-    
-    # 获取训练/预测
-    valid_idx = np.where(valid_mask)[0]
-    start_idx = valid_idx[train_window]  # 从第train_window个有效样本后开始
-    
-    all_signals = np.full(len(feat), 0.5)  # 存储所有信号P值
-    
-    # Walk-Forward 循环
-    wf_start = valid_idx[0]
-    n_steps = 0
-    for test_start in range(start_idx, len(valid_idx), step_size):
-        test_end = min(test_start + step_size, len(valid_idx))
-        if test_start >= len(valid_idx):
-            break
-        train_end_idx = valid_idx[test_start - 1]
-        
-        # 训练集
-        train_mask = (np.arange(len(feat)) >= wf_start) & (np.arange(len(feat)) <= train_end_idx) & valid_mask
-        X_train = feat.loc[train_mask, feat_cols].values
-        y_train = y[train_mask]
-        
-        if len(X_train) < 500:
-            continue
-        
-        # 测试集
-        test_start_orig = valid_idx[test_start]
-        test_end_orig = valid_idx[min(test_end, len(valid_idx)-1)] if test_end > test_start else test_start_orig + 1
-        test_mask = (np.arange(len(feat)) >= test_start_orig) & (np.arange(len(feat)) < test_end_orig) & valid_mask
-        test_indices = np.where(test_mask)[0]
-        
-        if len(test_indices) == 0:
-            continue
-        
-        # 训练模型
-        from xgboost import XGBClassifier
-        model = XGBClassifier(
-            n_estimators=200, max_depth=3, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8,
-            eval_metric='logloss', random_state=42
-        )
-        model.fit(X_train, y_train)
-        
-        # 预测
-        X_test = feat.loc[test_mask, feat_cols].values
-        probs = model.predict_proba(X_test)[:, 1]
-        all_signals[test_indices] = probs
-        
-        n_steps += 1
-        
-    print(f'[回测] 完成 {n_steps} 步预测, 覆盖 {int((all_signals != 0.5).sum())} 个交易日')
-    
-    # 运行交易模拟
-    print(f'[回测] 运行交易模拟...')
-    for i in range(len(feat)):
-        if not valid_mask[i] or all_signals[i] == 0.5:
-            continue  # 跳过无效或无信号的日子
-        
-        signal_p = all_signals[i]
-        price = close[i]
-        cur_atr = max(atr[i], 1.0)
-        date_str = dates[i]
-        
-        trader.step(price, cur_atr, signal_p, date_str)
-    
-    # 强制平仓
-    final_price = close[-1]
-    final_date = dates[-1]
-    trader.force_close_all(final_price, final_date)
-    
-    # 绩效
-    perf = trader.get_performance()
-    
-    # 保存结果
-    result = {
-        'perf': perf,
-        'equity_curve': trader.state.equity_curve,
-        'trades': [{
-            'entry': t.entry_date,
-            'exit': t.exit_date,
-            'dir': t.direction,
-            'entry_price': round(t.entry_price, 2),
-            'exit_price': round(t.exit_price, 2),
-            'pnl': round(t.pnl, 2),
-            'pnl_pct': round(t.pnl_pct * 100, 2),
-            'reason': t.exit_reason,
-            'signal_p': round(t.signal_p, 3),
-        } for t in trader.state.trades],
-        'params': {
-            'initial_capital': initial_capital,
-            'stop_atr': trader.stop_atr_mult,
-            'tp_atr': trader.tp_atr_mult,
-            'buy_threshold': trader.buy_threshold,
-            'sell_threshold': trader.sell_threshold,
-            'max_position': trader.max_position,
-        }
-    }
-    
-    return result
-
-
-# ======================== 实时模拟模式 ========================
-
-def run_live_simulation(feat_path='gold_features_enhanced.csv',
-                        model_path='gold_tide_calibrated_model.pkl',
-                        state_path='sim_state.json') -> Dict:
-    """
-    实时模拟：基于最新模型预测给出交易建议
-    同时读取/保存模拟状态
-    """
-    # 加载模型
-    with open(model_path, 'rb') as f:
-        model_pkg = pickle.load(f)
-    
-    calibrated = model_pkg['model']
-    feature_cols = model_pkg['features']
-    dead_cols = model_pkg.get('dead', [])
-    
-    # 加载最新特征
-    feat = pd.read_csv(feat_path, parse_dates=['Date'])
-    feat_cols = [c for c in feature_cols if c in feat.columns and c not in dead_cols]
-    
-    last_row = feat.iloc[-1]
-    X = feat[feat_cols].iloc[-1:].values
-    
-    # 预测
-    p_up = float(calibrated.predict_proba(X)[0, 1])
-    
-    # 价格和ATR
-    close = feat['Close'].values.astype(float)
-    price = close[-1]
-    
-    # 简易ATR
-    high = feat.get('High', close).values.astype(float) if 'High' in feat.columns else close
-    low = feat.get('Low', close).values.astype(float) if 'Low' in feat.columns else close
-    tr = np.maximum(high[1:] - low[1:],
-                    np.maximum(abs(high[1:] - close[:-1]), abs(low[1:] - close[:-1])))
-    tr = np.concatenate([[tr[0]], tr])
-    atr_val = float(pd.Series(tr).rolling(20, min_periods=5).mean().iloc[-1])
-    
-    date_str = str(last_row['Date'].date())
-    
-    # 读取历史模拟状态
-    if os.path.exists(state_path):
-        with open(state_path, 'r', encoding='utf-8') as f:
-            sim_state = json.load(f)
-    else:
-        sim_state = {
-            'capital': 100000,
-            'initial_capital': 100000,
-            'position': None,
-            'trade_count': 0,
-            'total_pnl': 0,
-        }
-    
-    # 生成交易建议
-    trader = TideTrader(initial_capital=sim_state['initial_capital'])
-    trader.state.capital = sim_state['capital']
-    
-    # 恢复持仓
-    if sim_state.get('position'):
-        pos_data = sim_state['position']
-        trader.state.position = Position(
-            direction=pos_data['direction'],
-            entry_price=pos_data['entry_price'],
-            quantity=pos_data['quantity'],
-            entry_date=pos_data['entry_date'],
-            entry_signal_p=pos_data['entry_signal_p'],
-            stop_loss=pos_data['stop_loss'],
-            take_profit=pos_data['take_profit']
-        )
-    
-    # 执行一步
-    step_result = trader.step(price, atr_val, p_up, date_str)
-    
-    # 更新模拟状态
-    new_state = {
-        'capital': trader.state.capital,
-        'initial_capital': sim_state['initial_capital'],
-        'position': None,
-        'trade_count': sim_state['trade_count'] + (1 if trader.state.trades and 
-                      trader.state.trades[-1].exit_date == date_str else 0),
-        'total_pnl': trader.state.capital - sim_state['initial_capital'],
-    }
-    
-    if trader.state.position:
-        new_state['position'] = {
-            'direction': trader.state.position.direction,
-            'entry_price': trader.state.position.entry_price,
-            'quantity': trader.state.position.quantity,
-            'entry_date': trader.state.position.entry_date,
-            'entry_signal_p': trader.state.position.entry_signal_p,
-            'stop_loss': trader.state.position.stop_loss,
-            'take_profit': trader.state.position.take_profit,
-        }
-    
-    with open(state_path, 'w', encoding='utf-8') as f:
-        json.dump(new_state, f, ensure_ascii=False, indent=2)
-    
-    # 生成建议
-    signal = {
-        'date': date_str,
-        'price': round(price, 2),
-        'p_up': round(p_up, 4),
-        'direction': 'BUY' if p_up > 0.60 else ('SELL' if p_up < 0.40 else 'HOLD'),
-        'confidence': round(abs(p_up - 0.5), 4),
-        'atr': round(atr_val, 2),
-    }
-    
-    # 开仓建议
-    if trader.state.position:
-        pos = trader.state.position
-        signal['position'] = {
-            'direction': pos.direction,
-            'entry_price': pos.entry_price,
-            'entry_date': pos.entry_date,
-            'stop_loss': round(pos.stop_loss, 2),
-            'take_profit': round(pos.take_profit, 2),
-            'unrealized_pnl_pct': round(
-                (price - pos.entry_price) / pos.entry_price * 100 if pos.direction == 'long'
-                else (pos.entry_price - price) / pos.entry_price * 100, 2
-            ),
-        }
-    else:
-        if signal['direction'] in ('BUY', 'SELL'):
-            kelly = trader.kelly_position(p_up if signal['direction'] == 'BUY' else (1 - p_up))
-            position_pct = min(kelly * (signal['confidence'] / 0.15), trader.max_position)
-            
-            if signal['direction'] == 'BUY':
-                sl = price - 2.5 * atr_val
-                tp = price + 3.0 * atr_val
-            else:
-                sl = price + 2.5 * atr_val
-                tp = price - 3.0 * atr_val
-            
-            signal['suggestion'] = {
-                'action': f'开{signal["direction"]}仓',
-                'position_pct': round(position_pct * 100, 1),
-                'entry': round(price, 2),
-                'stop_loss': round(sl, 2),
-                'take_profit': round(tp, 2),
-            }
-    
-    signal['state'] = new_state
-    
-    return signal
 
 
 # ======================== 命令行入口 ========================
 
-def main():
+if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='黄金潮汐交易模拟器')
-    parser.add_argument('--mode', choices=['backtest', 'live'], default='backtest',
-                       help='回测(backtest) 或 实时模拟(live)')
-    parser.add_argument('--capital', type=float, default=100000, help='初始资金')
-    parser.add_argument('--output', type=str, default='sim_result.json', help='结果输出文件')
-    parser.add_argument('--fwd', type=int, default=10, help='预测目标(日)')
+    parser = argparse.ArgumentParser(description='黄金潮汐实盘模拟器')
+    parser.add_argument('--reset', action='store_true', help='重置模拟状态（从今天重新开始）')
+    parser.add_argument('--capital', type=float, default=100000, help='初始资金（仅reset时生效）')
+    parser.add_argument('--start-back', type=int, default=60, help='首次运行时回溯天数（默认60天）')
+    parser.add_argument('--output', type=str, default='sim_live_result.json', help='结果JSON输出')
     args = parser.parse_args()
     
-    if args.mode == 'backtest':
-        print('=' * 60)
-        print('  黄金潮汐模型 — Walk-Forward 回测')
-        print('=' * 60)
-        result = run_backtest(initial_capital=args.capital, fwd=args.fwd)
-        
-        perf = result['perf']
-        print(f'\n{"=" * 60}')
-        print(f'  绩效报告')
-        print(f'{"=" * 60}')
-        print(f'  初始资金:    {perf["initial_capital"]:,.0f}')
-        print(f'  最终资金:    {perf["final_capital"]:,.0f}')
-        print(f'  总收益率:    {perf["total_return_pct"]:+.1f}%')
-        print(f'  年化收益:    {perf["cagr_pct"]:+.1f}%')
-        print(f'  夏普比率:    {perf["sharpe"]:.2f}')
-        print(f'  最大回撤:    {perf["max_drawdown_pct"]:.1f}%')
-        print(f'  交易次数:    {perf["n_trades"]}')
-        print(f'  胜率:        {perf["win_rate_pct"]:.1f}%')
-        print(f'  平均盈利:    {perf["avg_win_pct"]:+.2f}%')
-        print(f'  平均亏损:    {perf["avg_loss_pct"]:+.2f}%')
-        print(f'  盈亏比:      {perf["profit_factor"]:.2f}')
-        print(f'  持仓比例:    {perf["position_ratio_pct"]:.1f}%')
-        
-        if perf.get('reason_stats'):
-            print(f'\n  按退出原因:')
-            for r, s in perf['reason_stats'].items():
-                print(f'    {r}: {s["count"]}笔, 胜率{s["win_rate"]:.0f}%, 平均{s["avg_pnl_pct"]:+.2f}%')
-        
-        # 保存JSON
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f'\n  结果已保存: {args.output}')
+    if args.reset:
+        if os.path.exists('sim_live_state.json'):
+            os.remove('sim_live_state.json')
+            print('已重置模拟状态')
+        else:
+            print('无需重置（无历史状态）')
     
-    elif args.mode == 'live':
-        print('[实时模拟] 加载模型...')
-        signal = run_live_simulation()
-        print(f'\n  === 当前信号 ===')
-        print(f'  日期: {signal["date"]}')
-        print(f'  价格: {signal["price"]}')
-        print(f'  P(涨): {signal["p_up"]:.4f}')
-        print(f'  方向: {signal["direction"]}')
-        print(f'  置信: {signal["confidence"]:.4f}')
-        if signal.get('position'):
-            p = signal['position']
-            print(f'\n  当前持仓: {p["direction"]} @ {p["entry_price"]}')
-            print(f'  浮动盈亏: {p["unrealized_pnl_pct"]:+.2f}%')
-            print(f'  止损: {p["stop_loss"]}')
-            print(f'  止盈: {p["take_profit"]}')
-        elif signal.get('suggestion'):
-            s = signal['suggestion']
-            print(f'\n  建议: {s["action"]}')
-            print(f'  仓位: {s["position_pct"]}%')
-            print(f'  止损: {s["stop_loss"]}')
-            print(f'  止盈: {s["take_profit"]}')
-        
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(signal, f, ensure_ascii=False, indent=2)
-        print(f'\n  结果已保存: {args.output}')
-
-
-if __name__ == '__main__':
-    main()
+    trader = LiveTrader(initial_capital=args.capital)
+    trader._start_back_days = args.start_back  # 传回溯天数
+    result = trader.run_daily()
+    
+    # 输出JSON
+    with open(args.output, 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    
+    # 打印简报
+    s = result['signal']
+    p = result['perf']
+    print(f"\n{'='*50}")
+    print(f"  实盘模拟简报 — {s['date']}")
+    print(f"{'='*50}")
+    print(f"  当前价: {s['price']}  |  模型P(涨): {s['p_up']:.4f}")
+    print(f"  信号:   {s['direction']}  |  置信度: {s['confidence']:.4f}")
+    print(f"  资金:   {p['initial_capital']:,.0f} → {p['capital']:,.0f}  ({p['total_return_pct']:+.1f}%)")
+    print(f"  交易:   {p['n_trades']}笔  |  胜率: {p['win_rate_pct']:.1f}%")
+    print(f"  起始:   {p['start_date']}  |  跟踪: {p['n_days']}天  |  今日推进: {result['days_processed']}天")
+    
+    pos = result['position']
+    if pos:
+        print(f"\n  持仓: {pos['direction']} @ {pos['entry_price']} (自{pos['entry_date']})")
+        print(f"  浮动盈亏: {pos['unrealized_pnl_pct']:+.2f}%")
+        print(f"  止损: {pos['stop_loss']}  |  止盈: {pos['take_profit']}")
+    elif result['signal'].get('suggestion'):
+        sug = result['signal']['suggestion']
+        print(f"\n  建议: {sug['action']}  |  仓位: {sug['position_pct']}%")
+        print(f"  止损: {sug['stop_loss']}  |  止盈: {sug['take_profit']}")
+    
+    print(f"\n  结果: {args.output}  |  状态: {trader.state_path}")
