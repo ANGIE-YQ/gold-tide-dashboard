@@ -221,15 +221,15 @@ def generate_html(data):
     print(f'  看板已生成: docs/index.html')
     print(f'  数据文件: docs/data.js')
 
-    # 也更新模拟器页面（用最新回测数据）
+    # 也更新实盘模拟器（日度跟踪）
     try:
         import subprocess
-        subprocess.run([sys.executable, 'trade_simulator.py', '--mode', 'backtest', '--capital', '100000'],
+        subprocess.run([sys.executable, 'trade_simulator.py', '--capital', '100000'],
                        cwd=BASE, capture_output=True, timeout=180)
-        subprocess.run([sys.executable, 'build_simulator_page.py'], cwd=BASE, capture_output=True, timeout=30)
-        print(f'  模拟器已更新: docs/simulator.html')
+        subprocess.run([sys.executable, 'embed_simulator.py'], cwd=BASE, capture_output=True, timeout=30)
+        print(f'  实盘模拟已更新')
     except Exception as e:
-        print(f'  模拟器更新跳过: {e}')
+        print(f'  实盘模拟跳过: {e}')
 
 
 def generate_html_content(D):
