@@ -221,6 +221,16 @@ def generate_html(data):
     print(f'  看板已生成: docs/index.html')
     print(f'  数据文件: docs/data.js')
 
+    # 也更新模拟器页面（用最新回测数据）
+    try:
+        import subprocess
+        subprocess.run([sys.executable, 'trade_simulator.py', '--mode', 'backtest', '--capital', '100000'],
+                       cwd=BASE, capture_output=True, timeout=180)
+        subprocess.run([sys.executable, 'build_simulator_page.py'], cwd=BASE, capture_output=True, timeout=30)
+        print(f'  模拟器已更新: docs/simulator.html')
+    except Exception as e:
+        print(f'  模拟器更新跳过: {e}')
+
 
 def generate_html_content(D):
     """生成自包含HTML, 嵌入数据 + 实时价格拉取"""
@@ -269,6 +279,10 @@ h1{{font-size:20px}}h2{{font-size:15px;color:var(--t2);margin:16px 0 10px;border
 #pw-gate input{{padding:10px 16px;font-size:16px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);width:240px;text-align:center;outline:none}}
 #pw-gate input:focus{{border-color:var(--t3)}}
 #pw-gate .hint{{color:var(--t2);font-size:12px;margin-top:8px}}
+#setup-guide{{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9998;align-items:center;justify-content:center}}
+#setup-guide.show{{display:flex}}
+#setup-guide .box{{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:440px;text-align:center}}
+#setup-guide .box a{{color:var(--t3)}}
 </style>
 </head>
 <body>
@@ -294,6 +308,26 @@ h1{{font-size:20px}}h2{{font-size:15px;color:var(--t2);margin:16px 0 10px;border
 </div>
 
 <div id="toast" class="toast"></div>
+
+<div id="setup-guide" class="show" style="display:none">
+  <div class="box">
+    <h3 style="margin-bottom:12px">⚡ 一键更新设置（仅需一次）</h3>
+    
+    <p style="font-size:13px;color:var(--t2);margin:8px 0"><b>方法一：Fine-grained Token（推荐）</b></p>
+    <p style="font-size:12px;color:var(--t2)">1. 打开 <a href="https://github.com/settings/tokens?type=beta" target="_blank">GitHub Token页面</a></p>
+    <p style="font-size:12px;color:var(--t2)">2. 点 <b>Generate new token</b> → 选 <b>ANGIE-YQ/gold-tide-dashboard</b></p>
+    <p style="font-size:12px;color:var(--t2)">3. Repository permissions → <b>Actions: Read and write</b></p>
+    <p style="font-size:12px;color:var(--t2)">4. Contents: <b>Read and write</b></p>
+    <p style="font-size:12px;color:var(--t2)">5. 点 Generate, 复制Token(以 github_pat_ 开头)</p>
+
+    <p style="font-size:13px;color:var(--t2);margin:12px 0"><b>方法二：Classic Token</b></p>
+    <p style="font-size:12px;color:var(--t2)">打开 <a href="https://github.com/settings/tokens/new?scopes=workflow,repo&description=Gold+Tide" target="_blank">这个链接</a> → 直接点底部 Generate → 复制Token(以 ghp_ 开头)</p>
+
+    <input type="text" id="token-input" placeholder="粘贴Token到这里" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);margin:8px 0;font-size:13px">
+    <button onclick="saveToken()" style="padding:8px 24px;background:var(--t3);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px">保存并启用</button>
+    <p style="font-size:11px;color:var(--t2);margin-top:8px;cursor:pointer" onclick="document.getElementById('setup-guide').style.display='none'">以后再说</p>
+  </div>
+</div>
 
 <div class="grid3" style="margin-top:12px">
 <div class="card"><div class="label">模型价格</div><div class="big-num">{D['current']['price']:.0f}<span class="unit">元/克</span></div></div>
@@ -483,33 +517,57 @@ function showToast(msg, isOk) {{
 
 async function triggerRefresh() {{
   const btn = document.getElementById('btn-refresh');
-  btn.disabled = true;
-  btn.textContent = '已打开Actions页面...';
-  
   let token = localStorage.getItem('gh_token');
-  if (token) {{
-    try {{
-      await fetch('https://api.github.com/repos/ANGIE-YQ/gold-tide-dashboard/actions/workflows/update-dashboard.yml/dispatches', {{
-        method:'POST', headers:{{'Authorization':'token '+token,'Accept':'application/vnd.github+json'}},
-        body: JSON.stringify({{ref:'main'}})
-      }});
-      showToast('已触发!约1-2分钟后刷新页面。', true);
-    }} catch(e) {{
-      window.open('https://github.com/ANGIE-YQ/gold-tide-dashboard/actions', '_blank');
-      showToast('请点击Run workflow手动触发', false);
-    }}
-  }} else {{
-    window.open('https://github.com/ANGIE-YQ/gold-tide-dashboard/actions', '_blank');
-    showToast('在Actions页面点Run workflow即可', false);
+  
+  if (!token) {{
+    // No token - show setup guide
+    document.getElementById('setup-guide').style.display = 'block';
+    return;
   }}
-  setTimeout(() => {{ btn.disabled = false; btn.textContent = '更新模型数据'; }}, 3000);
+  
+  btn.disabled = true;
+  btn.textContent = '触发中...';
+  
+  try {{
+    const resp = await fetch('https://api.github.com/repos/ANGIE-YQ/gold-tide-dashboard/actions/workflows/update-dashboard.yml/dispatches', {{
+      method:'POST',
+      headers: {{'Authorization':'token '+token, 'Accept':'application/vnd.github+json'}},
+      body: JSON.stringify({{ref:'main'}})
+    }});
+    if (resp.status === 204) {{
+      showToast('✅ 已触发! 约1-2分钟后刷新页面。', true);
+      btn.textContent = '刷新页面';
+      btn.onclick = () => location.reload();
+    }} else {{
+      const err = await resp.text();
+      if (resp.status === 403) {{
+        showToast('403权限不足。请重新生成Token,确保勾选Actions和Contents权限。', false);
+        document.getElementById('setup-guide').style.display = 'flex';
+      }} else if (resp.status === 404) {{
+        showToast('工作流未配置,请先将WORKFLOW-SETUP.yml移到.github/workflows/', false);
+      }} else {{
+        showToast('触发失败('+resp.status+'), Token可能过期。双击标题重新设置。', false);
+      }}
+      btn.disabled = false;
+      btn.textContent = '更新模型数据';
+    }}
+  }} catch(e) {{
+    showToast('网络错误: '+e.message, false);
+    btn.disabled = false;
+    btn.textContent = '更新模型数据';
+  }}
 }}
 
-// Double-click title to set token
-document.querySelector('h1').ondblclick = function() {{
-  const t = prompt('GitHub Token (需要workflow权限):');
-  if(t) {{ localStorage.setItem('gh_token', t); showToast('Token已保存!', true); }}
-}};
+function saveToken() {{
+  const t = document.getElementById('token-input').value.trim();
+  if (t.startsWith('ghp_') || t.startsWith('github_pat_')) {{
+    localStorage.setItem('gh_token', t);
+    document.getElementById('setup-guide').style.display = 'none';
+    showToast('已保存! 试试点更新按钮。', true);
+  }} else {{
+    showToast('格式不对。Fine-grained以github_pat_开头, Classic以ghp_开头', false);
+  }}
+}}
 
 // Init
 window.onload=function(){{
