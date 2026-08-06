@@ -1,9 +1,10 @@
 __pycache__/
 *.pyc
-*.pkl
 *.png
-gold_features_enhanced.csv
-dashboard_data.json
 deliverables/
 .workbuddy/
 *.log
+gold-tide-portable/experiments/
+docs/model-guide.docx
+docs/robots.txt
+docs/simulator.html

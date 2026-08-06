@@ -32,11 +32,11 @@ from pathlib import Path
 
 # ============================ CONFIG(假设独立区) ============================
 CONFIG = {
-    'DATA_PATH': 'D:/Work/module/gold_AU0_daily.csv',  # 已落地的真实数据
+    'DATA_PATH': './gold_AU0_daily.csv',  # 已落地的真实数据
     'ATR_WINDOW': 20,        # ATR 滚动窗口(交易日)
     'BIG_THR_MULT': 3.0,     # 大潮汐阈值 = 3 x ATR(粗)
     'SMALL_THR_MULT': 1.0,   # 小潮汐阈值 = 1 x ATR(细)
-    'FIG_PATH': 'D:/Work/module/gold_tides.png',
+    'FIG_PATH': './gold_tides.png',
     'N_RECENT': 14,          # 摘要展示最近 N 个大潮汐
 }
 # ============================================================================

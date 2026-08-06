@@ -136,9 +136,13 @@ def _score_one_leg(df, leg, subs_all, atr, avg_big_dur, avg_small_dur, avg_energ
 def score_all_tides(df, big_legs, small_legs, atr):
     """对每条大潮汐(完整口径)计算 12 项动能分 + 渐变对比(上一同向动能分)."""
     close = df['Close'].values.astype(float)
-    avg_big_dur = float(np.mean([l['duration_bars'] for l in big_legs])) or 1.0
-    avg_small_dur = float(np.mean([l['duration_bars'] for l in small_legs])) or 1.0
-    avg_energy = float(np.mean([l['energy'] for l in big_legs])) or 1.0
+    # 防NaN: np.mean([]) 返回 nan，nan 在 Python 中是 truthy，or 不会生效
+    big_durs = [l['duration_bars'] for l in big_legs]
+    small_durs = [l['duration_bars'] for l in small_legs]
+    big_energies = [l['energy'] for l in big_legs]
+    avg_big_dur = float(np.mean(big_durs)) if big_durs else 1.0
+    avg_small_dur = float(np.mean(small_durs)) if small_durs else 1.0
+    avg_energy = float(np.mean(big_energies)) if big_energies else 1.0
     last_up = None
     last_down = None
 
@@ -161,9 +165,17 @@ def pivot_momentum(df, big_legs, small_legs, atr, owner_leg, conf_idx):
     """运行动能(无前视):在拐点被确认的 bar(conf_idx) 处,对所属大潮汐做
     『当时已知』的动能评分,仅用 <=conf_idx 的数据.信号在潮汐内拐点发出时,
     不再偷看潮汐后续(约 2 根)的未来数据.返回 0-100 分值."""
-    avg_big_dur = float(np.mean([l['duration_bars'] for l in big_legs])) or 1.0
-    avg_small_dur = float(np.mean([l['duration_bars'] for l in small_legs])) or 1.0
-    avg_energy = float(np.mean([l['energy'] for l in big_legs])) or 1.0
+    # 仅用 end_idx <= conf_idx 的已完成潮汐计算均值 (修复统计泄漏)
+    done_big = [l for l in big_legs if l['end_idx'] <= conf_idx]
+    done_small = [l for l in small_legs if l['end_idx'] <= conf_idx]
+    if not done_big:
+        done_big = big_legs[:1]  # fallback: 至少有一个参考值
+    if not done_small:
+        done_small = small_legs[:1] if small_legs else [{'duration_bars': 1}]
+
+    avg_big_dur = float(np.mean([l['duration_bars'] for l in done_big])) or 1.0
+    avg_small_dur = float(np.mean([l['duration_bars'] for l in done_small])) or 1.0
+    avg_energy = float(np.mean([l['energy'] for l in done_big])) or 1.0
     composite, _ = _score_one_leg(df, owner_leg, small_legs, atr,
                                   avg_big_dur, avg_small_dur, avg_energy, end_eval=int(conf_idx))
     return composite
@@ -274,7 +286,7 @@ def main():
     score_all_tides(df, big_legs, small_legs, atr)
     sig = generate_signals(df, big_legs, small_pv)
     n_sig, hit, acc, cum = backtest(df, sig, fwd=10)
-    plot_signals(df, big_legs, sig, 'D:/Work/module/gold_signals.png')
+    plot_signals(df, big_legs, sig, './gold_signals.png')
 
     scores = [b['momentum_score'] for b in big_legs]
     print('=' * 64)
@@ -310,7 +322,7 @@ def main():
     print('  累计收益(点, 未计成本) = %.1f   单笔均值 = %.2f' % (cum, cum / max(n_sig, 1)))
     print('  注: 原始「拐点端点」回测胜率会虚高(≈100%),因买卖点=分段端点,')
     print('      属循环论证,不能证明预测力;以上为诚实的方向预测口径.')
-    print('\n图表: D:/Work/module/gold_signals.png')
+    print('\n图表: ./gold_signals.png')
 
 
 if __name__ == '__main__':

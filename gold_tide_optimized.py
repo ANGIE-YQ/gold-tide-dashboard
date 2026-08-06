@@ -148,11 +148,109 @@ def build_enhanced_features(force=False):
     return base_feat
 
 
+def _gen_walk_forward_probs(feat, fwd=10, train_window=1500, step=200):
+    """Walk-Forward 概率生成器 (内联替代 gold_tide_t3.gen_p)"""
+    from xgboost import XGBClassifier
+
+    label_col = f'fwd{fwd}'
+    skip_cols = {'Date', 'Close', 'fwd5', 'fwd10', 'fwd20'}
+    dead_feats = {'ip_small_cnt', 'ip_small_up_ratio', 'ip_last_small_dir', 'ip_trend_slope'}
+    fc = [c for c in feat.columns if c not in skip_cols and c not in dead_feats]
+
+    y = (feat[label_col] > 0).astype(int).values
+    ok = ~feat[label_col].isna().values
+    valid_idx = np.where(ok)[0]
+
+    probs = {}
+    for test_start in range(train_window, len(valid_idx), step):
+        test_end = min(test_start + step, len(valid_idx))
+        if test_start >= len(valid_idx):
+            break
+        train_end = valid_idx[test_start - 1]
+
+        train_mask = ((np.arange(len(feat)) >= valid_idx[0])
+                      & (np.arange(len(feat)) <= train_end) & ok)
+        test_start_orig = valid_idx[test_start]
+        test_end_orig = valid_idx[min(test_end, len(valid_idx) - 1)] if test_end > test_start else test_start_orig + 1
+        test_mask = ((np.arange(len(feat)) >= test_start_orig)
+                     & (np.arange(len(feat)) <= test_end_orig) & ok)
+
+        X_train = feat.loc[train_mask, fc].values
+        y_train = y[train_mask]
+        X_test = feat.loc[test_mask, fc].values
+
+        if len(X_train) < 500 or len(X_test) == 0:
+            continue
+
+        model = XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.05,
+                              subsample=0.8, colsample_bytree=0.8,
+                              eval_metric='logloss', random_state=42)
+        model.fit(X_train, y_train)
+        test_probs = model.predict_proba(X_test)[:, 1]
+        for j, idx in enumerate(np.where(test_mask)[0]):
+            probs[idx] = float(test_probs[j])
+
+    return probs
+
+
+def _eval_walk_forward(feat, fwd=10, train_window=1500, step=200):
+    """Walk-Forward评估 (内联替代 gold_tide_ml.walk_forward)"""
+    from xgboost import XGBClassifier
+    from sklearn.metrics import roc_auc_score, accuracy_score
+
+    label_col = f'fwd{fwd}'
+    skip_cols = {'Date', 'Close', 'fwd5', 'fwd10', 'fwd20'}
+    dead_feats = {'ip_small_cnt', 'ip_small_up_ratio', 'ip_last_small_dir', 'ip_trend_slope'}
+    fc = [c for c in feat.columns if c not in skip_cols and c not in dead_feats]
+
+    y = (feat[label_col] > 0).astype(int).values
+    ok = ~feat[label_col].isna().values
+    valid_idx = np.where(ok)[0]
+
+    aucs, accs = [], []
+    for test_start in range(train_window, len(valid_idx), step):
+        test_end = min(test_start + step, len(valid_idx))
+        if test_start >= len(valid_idx):
+            break
+        train_end = valid_idx[test_start - 1]
+
+        train_mask = ((np.arange(len(feat)) >= valid_idx[0])
+                      & (np.arange(len(feat)) <= train_end) & ok)
+        test_start_orig = valid_idx[test_start]
+        test_end_orig = valid_idx[min(test_end, len(valid_idx) - 1)] if test_end > test_start else test_start_orig + 1
+        test_mask = ((np.arange(len(feat)) >= test_start_orig)
+                     & (np.arange(len(feat)) <= test_end_orig) & ok)
+
+        X_train = feat.loc[train_mask, fc].values
+        y_train = y[train_mask]
+        X_test = feat.loc[test_mask, fc].values
+        y_test = y[test_mask]
+
+        if len(X_train) < 500 or len(X_test) < 20:
+            continue
+
+        model = XGBClassifier(n_estimators=200, max_depth=3, learning_rate=0.05,
+                              subsample=0.8, colsample_bytree=0.8,
+                              eval_metric='logloss', random_state=42)
+        model.fit(X_train, y_train)
+        probs = model.predict_proba(X_test)[:, 1]
+        preds = model.predict(X_test)
+
+        if len(np.unique(y_test)) >= 2:
+            aucs.append(roc_auc_score(y_test, probs))
+        accs.append(accuracy_score(y_test, preds))
+
+    return {
+        'mean_auc': float(np.mean(aucs)) if aucs else 0.5,
+        'mean_acc': float(np.mean(accs)) if accs else 0.5,
+        'n_folds': len(aucs),
+    }
+
+
 def ensemble_predict(feat, fwd=10):
     """集成预测：优先使用校准模型，融合WF扩展"""
     from xgboost import XGBClassifier
     from sklearn.calibration import CalibratedClassifierCV
-    from gold_tide_t3 import gen_p
     import pickle, os
 
     model_path = os.path.join(BASE_DIR, 'gold_tide_calibrated_model.pkl')
@@ -183,13 +281,14 @@ def ensemble_predict(feat, fwd=10):
                               subsample=0.8,colsample_bytree=0.8,
                               eval_metric='logloss',random_state=42)
         base.fit(X[ok], y[ok])
-        cal_full = CalibratedClassifierCV(base, method='sigmoid', cv=5)
+        from sklearn.model_selection import TimeSeriesSplit
+        cal_full = CalibratedClassifierCV(base, method='sigmoid', cv=TimeSeriesSplit(n_splits=5))
         cal_full.fit(X[ok], y[ok])
         with open(model_path, 'wb') as f:
             pickle.dump({'model': cal_full, 'features': fc, 'dead': list(dead_feats)}, f)
 
     # 1. Walk-Forward 概率
-    wf_prob = gen_p(feat, fwd)
+    wf_prob = _gen_walk_forward_probs(feat, fwd)
     wf_last = wf_prob.get(len(feat) - 1, None)
 
     # 2. 扩展WF（未覆盖时追加）
@@ -394,10 +493,11 @@ def main():
     # 3. 市场状态
     states = market_state(feat)
 
-    # 4. ML验证
-    from gold_tide_ml import load_features, walk_forward
-    base_feat = load_features(FEAT_PATH)
-    ml_results = {fwd: walk_forward(base_feat, fwd) for fwd in (5, 10, 20)}
+    # 4. ML验证 (内联替代 gold_tide_ml)
+    base_feat = pd.read_csv(FEAT_PATH, parse_dates=['Date'])
+    ml_results = {}
+    for fwd in (5, 10, 20):
+        ml_results[fwd] = _eval_walk_forward(base_feat, fwd)
 
     # 5. 行情数据
     from gold_tide_engine import load_data, compute_atr

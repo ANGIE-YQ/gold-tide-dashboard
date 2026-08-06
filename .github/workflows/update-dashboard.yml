@@ -2,9 +2,8 @@ name: Update Gold Tide Dashboard
 
 on:
   schedule:
-    # 每日北京时间 15:30 (UTC 07:30) — 上期所收盘后
     - cron: '30 7 * * 1-5'
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,17 +22,26 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install numpy pandas matplotlib scikit-learn xgboost
+        run: pip install -r requirements.txt
 
-      - name: Refresh Dashboard
-        run: python refresh_dashboard.py
+      - name: Rebuild Features
+        run: python gold_tide_en_v.py
 
-      - name: Commit updated dashboard
+      - name: Train Models
+        run: python train_multimodel.py
+
+      - name: Build Dashboard Data
+        run: python build_dashboard_data.py
+
+      - name: Commit updated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html docs/data.js gold_AU0_daily.csv gold_features.csv gold_tide_calibrated_model.pkl
+          git add docs/index.html docs/dashboard_data.json \
+                  gold_AU0_daily.csv gold_features.csv gold_features_enhanced.csv \
+                  gold_tide_calibrated_model.pkl \
+                  gold_tide_model_v1_*.pkl gold_tide_model_v2_*.pkl gold_tide_model_v3_*.pkl \
+                  model_comparison_results.json
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else

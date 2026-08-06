@@ -19,6 +19,8 @@ KEYS = None  # 12 项动能键，build 时填充
 
 def build_features(df, atr, big_legs, small_legs, small_pv, save_csv=True):
     global KEYS
+    if not big_legs:
+        raise ValueError("无法构建特征层: 未检测到任何大潮汐(数据不足或阈值过严)")
     close = df['Close'].values.astype(float)
     n = len(close)
     starts = np.array([b['start_idx'] for b in big_legs])
@@ -145,7 +147,7 @@ def build_features(df, atr, big_legs, small_legs, small_pv, save_csv=True):
     warm = starts[0] + 20
     feat_df = feat_df.iloc[warm:].reset_index(drop=True)
     if save_csv:
-        feat_df.to_csv('D:/Work/module/gold_features.csv', index=False)
+        feat_df.to_csv('./gold_features.csv', index=False)
     return feat_df
 
 
@@ -162,7 +164,7 @@ def main():
     score_all_tides(df, big, small, atr)
     feat = build_features(df, atr, big, small, spv)
     print('特征矩阵: %d 行 × %d 列' % (feat.shape[0], feat.shape[1]))
-    print('保存: D:/Work/module/gold_features.csv')
+    print('保存: ./gold_features.csv')
     print('特征列:', list(feat.columns[:-4]))
 
 

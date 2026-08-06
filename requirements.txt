@@ -1,0 +1,10 @@
+# Gold Tide Model — 黄金潮汐量化模型依赖
+# 生成日期: 2026-08-05
+# 最低兼容版本，建议用 pip install -r requirements.txt 安装
+
+numpy>=1.21,<2.0
+pandas>=1.4,<3.0
+scikit-learn>=1.1,<1.6
+xgboost>=1.7,<3.0
+matplotlib>=3.5,<4.0
+yfinance>=0.2.0
