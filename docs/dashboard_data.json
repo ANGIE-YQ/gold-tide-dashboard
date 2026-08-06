@@ -1,7 +1,9 @@
 {
-  "generated": "2026-08-06 14:17",
+  "generated": "2026-08-06 17:11",
   "current": {
     "price": 886.48,
+    "live_price": 926.9,
+    "live_change_pct": 0.01,
     "atr": 14.89,
     "ma20": 888.28,
     "date": "2026-08-04"

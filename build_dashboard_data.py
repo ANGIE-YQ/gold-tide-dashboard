@@ -35,6 +35,24 @@ def main():
     price_now = float(close[-1])
     atr_now = float(atr_arr[-1])
 
+    # 取实时价 (服务端无CORS限制)
+    live_price = price_now
+    live_change_pct = 0.0
+    try:
+        import urllib.request, re
+        url = 'https://hq.sinajs.cn/list=nf_AU0'
+        req = urllib.request.Request(url, headers={'Referer': 'https://finance.sina.com.cn'})
+        raw = urllib.request.urlopen(req, timeout=10).read().decode('gbk', 'ignore')
+        m = re.search(r'"([^"]+)"', raw)
+        if m:
+            parts = m.group(1).split(',')
+            live_price = float(parts[5])
+            pre = float(parts[6])
+            if pre > 0:
+                live_change_pct = round((live_price - pre) / pre * 100, 2)
+    except:
+        pass
+
     # === Combined Model ===
     feat = pd.read_csv('gold_features_enhanced.csv', parse_dates=['Date'])
     with open('gold_tide_calibrated_model.pkl', 'rb') as f:
@@ -251,6 +269,8 @@ def main():
         'generated': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'),
         'current': {
             'price': round(price_now, 2),
+            'live_price': round(live_price, 2),
+            'live_change_pct': live_change_pct,
             'atr': round(atr_now, 2),
             'ma20': round(float(np.mean(close[-20:])), 2),
             'date': str(pd.Timestamp(df['Date'].values[-1]).date()),
