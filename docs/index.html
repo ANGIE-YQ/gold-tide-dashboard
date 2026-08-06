@@ -427,16 +427,18 @@ function renderTides(D){
 }
 
 function fetchLivePrice(){
-  fetch('https://hq.sinajs.cn/list=au0',{headers:{'Referer':'https://finance.sina.com.cn'}})
+  fetch('https://hq.sinajs.cn/list=nf_AU0',{headers:{'Referer':'https://finance.sina.com.cn'}})
     .then(r=>r.text())
     .then(t=>{
       const m=t.match(/"([^"]+)"/);
       if(!m)throw new Error('parse');
       const p=m[1].split(',');
-      const price=parseFloat(p[3]),change=parseFloat(p[2]);
+      // 内盘期货: parts[5]=最新价, parts[6]=昨收
+      const price=parseFloat(p[5]),preClose=parseFloat(p[6]);
       if(isNaN(price))throw new Error('NaN');
+      const changePct=isNaN(preClose)?0:((price-preClose)/preClose*100);
       document.getElementById('live-price').textContent=price.toFixed(2);
-      document.getElementById('live-change').innerHTML=`<span style="color:${change>=0?'var(--green)':'var(--red)'}">${change>=0?'+':''}${change.toFixed(2)}%</span>`;
+      document.getElementById('live-change').innerHTML=`<span style="color:${changePct>=0?'var(--green)':'var(--red)'}">${changePct>=0?'+':''}${changePct.toFixed(2)}%</span>`;
       document.getElementById('live-dot').className='live-dot on';
     })
     .catch(()=>{
