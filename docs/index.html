@@ -99,7 +99,10 @@ footer a{color:var(--blue)}
 .collapse-content{display:none}
 .collapse-content.open{display:block}
 
-/* Signal strength dots */
+/* Refresh button */
+.btn-refresh{display:inline-block;padding:3px 10px;background:var(--card);border:1px solid var(--border);border-radius:4px;color:var(--blue);cursor:pointer;font-size:11px;transition:all .2s}
+.btn-refresh:hover{border-color:var(--blue);background:#1a2332}
+.btn-refresh:disabled{opacity:.5;cursor:wait}
 .signal-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
 </style>
 </head>
@@ -112,9 +115,27 @@ footer a{color:var(--blue)}
 <div class="live-price">
   <div class="price"><span class="live-dot on" id="live-dot"></span><span id="live-price">--</span></div>
   <div class="change" id="live-change">加载中...</div>
-  <div class="time">模型更新: <span id="model-time">--</span></div>
+  <div class="time">模型更新: <span id="model-time">--</span> <button class="btn-refresh" onclick="triggerRefresh()" id="btn-refresh" style="margin-left:8px">🔄 手动更新</button></div>
 </div>
 </header>
+
+<!-- Token 设置弹窗 -->
+<div id="setup-guide" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center">
+<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:440px;text-align:center">
+<h3 style="margin-bottom:12px">⚡ 设置 GitHub Token（仅需一次）</h3>
+<p style="font-size:12px;color:var(--t2);margin:6px 0">
+1. 打开 <a href="https://github.com/settings/tokens" target="_blank" style="color:var(--blue)">GitHub Token 页面</a><br>
+2. Generate new token (classic) → 勾选 <b>repo</b> 和 <b>workflow</b><br>
+3. 复制 Token（以 ghp_ 开头）
+</p>
+<input type="text" id="token-input" placeholder="粘贴 Token" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);margin:8px 0;font-size:13px">
+<button onclick="saveToken()" style="padding:8px 24px;background:var(--blue);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px">保存并触发更新</button>
+<p style="font-size:11px;color:var(--t2);margin-top:8px;cursor:pointer" onclick="document.getElementById('setup-guide').style.display='none'">以后再说</p>
+</div>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="position:fixed;top:20px;right:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 20px;font-size:13px;z-index:999;display:none;max-width:350px"></div>
 
 <main>
 <!-- ====== SECTION 1: 今日决策 ====== -->
@@ -461,6 +482,38 @@ function toggleCollapse(el){
 }
 
 window.onresize=()=>{if(window.D)renderPriceChart(window.D)};
+
+// ===== 手动刷新按钮 =====
+function showToast(msg, isOk){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.borderColor=isOk?'var(--green)':'var(--yellow)';
+  t.style.display='block';setTimeout(()=>t.style.display='none',4000);
+}
+function saveToken(){
+  const t=document.getElementById('token-input').value.trim();
+  if(t.startsWith('ghp_')||t.startsWith('github_pat_')){
+    localStorage.setItem('gh_token',t);
+    document.getElementById('setup-guide').style.display='none';
+    showToast('Token 已保存！点击手动更新按钮触发更新',true);
+    triggerRefresh();
+  }else{showToast('Token 格式不对。Classic 以 ghp_ 开头',false)}
+}
+async function triggerRefresh(){
+  const btn=document.getElementById('btn-refresh');
+  let token=localStorage.getItem('gh_token');
+  if(!token){document.getElementById('setup-guide').style.display='flex';return}
+  btn.disabled=true;btn.textContent='触发中...';
+  try{
+    const resp=await fetch('https://api.github.com/repos/ANGIE-YQ/gold-tide-dashboard/actions/workflows/update-dashboard.yml/dispatches',{
+      method:'POST',headers:{'Authorization':'token '+token,'Accept':'application/vnd.github+json'},
+      body:JSON.stringify({ref:'main'})
+    });
+    if(resp.status===204){showToast('✅ 已触发！约 2 分钟后刷新页面',true);btn.textContent='刷新页面';btn.onclick=()=>location.reload()}
+    else if(resp.status===403){showToast('Token 权限不足，需勾选 repo + workflow',false);document.getElementById('setup-guide').style.display='flex'}
+    else{showToast('触发失败('+resp.status+')，Token 可能过期',false)}
+    btn.disabled=false;if(btn.textContent!=='刷新页面')btn.textContent='🔄 手动更新';
+  }catch(e){showToast('网络错误: '+e.message,false);btn.disabled=false;btn.textContent='🔄 手动更新'}
+}
 </script>
 </body>
 </html>
