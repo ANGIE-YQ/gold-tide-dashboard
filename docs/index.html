@@ -320,8 +320,11 @@ fetch('dashboard_data.json')
 function render(){
   const D=window.D;if(!D)return;
 
-  // Header
+  // Header — 立即显示模型数据中的价格(避免 live fetch CORS 失败时空白)
   document.getElementById('model-time').textContent=D.generated;
+  document.getElementById('live-price').textContent=D.current.price.toFixed(2);
+  document.getElementById('live-change').textContent='模型更新价';
+  document.getElementById('live-dot').className='live-dot on';
 
   // Section 1: Decision
   const c=D.combined;
@@ -443,7 +446,9 @@ function fetchLivePrice(){
     })
     .catch(()=>{
       document.getElementById('live-dot').className='live-dot off';
-      document.getElementById('live-change').textContent='实时数据暂不可用';
+      // 保留 render() 中已显示的模型价格, 不覆盖
+      if(!document.getElementById('live-change').textContent.includes('%'))
+        document.getElementById('live-change').textContent='实时延迟,显示模型价';
     });
 }
 
